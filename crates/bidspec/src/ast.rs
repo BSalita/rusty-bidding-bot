@@ -166,6 +166,12 @@ pub struct CardCond {
     /// Required value; absent means "is on".
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub value: Option<Literal>,
+    /// For a `convention` line written `default true`: the module is also on
+    /// for a card that is silent on the convention, and off only when the
+    /// card says it does not play it. The bidder's own choice for a silent
+    /// card, as a parameter's default is.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub default_on: bool,
     pub line: usize,
 }
 

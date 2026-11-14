@@ -97,6 +97,8 @@ impl System {
         let mut active: HashSet<&str> = HashSet::new();
         for m in modules {
             let failed = m.card.iter().find(|c| match &c.value {
+                // `convention <id> default true`: on unless the card says no.
+                None if c.default_on => card.effective(&c.path) == Some(&Value::Bool(false)),
                 None => !card.is_on(&c.path),
                 Some(v) => card.effective(&c.path) != Some(&literal_value(v)),
             });

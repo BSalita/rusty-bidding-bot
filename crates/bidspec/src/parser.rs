@@ -253,7 +253,10 @@ impl<'a> Parser<'a> {
         };
         match lines[line].first_word() {
             Some("convention") => match words.as_slice() {
-                [id] if bridge_card::skills::is_skill_path(id) => {
+                [id] | [id, "default", "true" | "false"]
+                    if bridge_card::skills::is_skill_path(id) =>
+                {
+                    let default_on = words.last() == Some(&"true");
                     if module.convention.is_some() {
                         self.error(line, None, "a module has one `convention` line");
                     } else if !module.card.is_empty() || !module.params.is_empty() {
@@ -267,6 +270,7 @@ impl<'a> Parser<'a> {
                         module.card.push(CardCond {
                             path: id.to_string(),
                             value: None,
+                            default_on,
                             line: no,
                         });
                     }
@@ -274,7 +278,7 @@ impl<'a> Parser<'a> {
                 _ => self.error(
                     line,
                     None,
-                    "expected `convention <category>/<name>` (`bidding_conventions/stayman`)",
+                    "expected `convention <category>/<name> [default true]` (`bidding_conventions/stayman`)",
                 ),
             },
             Some("needs") => {
@@ -293,11 +297,13 @@ impl<'a> Parser<'a> {
                 [path] => module.card.push(CardCond {
                     path: address(path),
                     value: None,
+                    default_on: false,
                     line: no,
                 }),
                 [path, "=", value] => module.card.push(CardCond {
                     path: address(path),
                     value: Some(literal(value)),
+                    default_on: false,
                     line: no,
                 }),
                 _ => self.error(
