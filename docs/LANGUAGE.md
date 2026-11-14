@@ -454,7 +454,10 @@ and arithmetic on numbers and `.min` / `.max`.
 **Suits.** A suit in a comparison is its length (`S>=H`, `M>=4`, `x<=1`).
 `is` asks what something *is*: `we.trump is suit` (or `notrump`, `none`), and
 `x is M` / `x is not M` for "the same suit" or "a different suit", and
-`style is relay` for a card option (section 3). Precedence, tightest first:
+`style is relay` for a card option (section 3). A parameter that reads a
+function's part (`param def = defence_to_1nt.strong`) holds the ID of the
+convention the card plays for it: `def is competitive_bidding/dont`, the ID
+written without spaces, and `def is none` when nothing fills it. Precedence, tightest first:
 `!`, then `|`, then `,`. So `hcp>=8, H=4 | S=4` reads as "8+ HCP, and a
 4-card heart or spade suit". Parentheses override.
 

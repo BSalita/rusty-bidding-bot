@@ -468,10 +468,20 @@ fn comparison(c: &mut Cursor) -> Result<Expr, PError> {
             }
             // A card option may be spelt with digits (`rstyle is 0314`): the
             // text as written, leading zeros kept.
-            let what = match c.peek() {
+            let mut what = match c.peek() {
                 Some(Tok::Int(_)) => c.source_text(),
                 _ => c.word("a suit, or suit, notrump or none, after `is`")?,
             };
+            // A convention's ID (`def is competitive_bidding/dont`), written
+            // without spaces: what a function's part is compared with.
+            if c.peek() == Some(&Tok::Slash) && c.adjacent() {
+                c.bump();
+                if !c.adjacent() {
+                    return c.err("expected the rest of a convention's ID after `/`".to_string());
+                }
+                let name = c.word("the rest of a convention's ID after `/`")?;
+                what = format!("{what}/{name}");
+            }
             return Ok(Expr::Is {
                 expr: Box::new(lhs),
                 what,
@@ -656,6 +666,17 @@ mod tests {
             Expr::Is { not: false, .. }
         ));
         assert!(matches!(parse("x is not M"), Expr::Is { not: true, .. }));
+        // A convention's ID, and a division that is not one.
+        match parse("def is competitive_bidding/dont") {
+            Expr::Is {
+                what, not: false, ..
+            } => assert_eq!(what, "competitive_bidding/dont"),
+            other => panic!("{other:?}"),
+        }
+        assert_eq!(
+            parse("def is not competitive_bidding/dont").to_string(),
+            "def is not competitive_bidding/dont"
+        );
         assert!(matches!(parse("!shape 4333"), Expr::Not { .. }));
         assert_eq!(
             parse("shape 5-4-x-x"),

@@ -25,7 +25,7 @@ S 2.AQJ85.KQ3.KQ75      | 1H P 4H P        | 4NT    | plain Blackwood
 
 # ── Natural as card JSON (cards/json/Natural.json), which can turn the
 # transfers off: 1NT–2♥ is to play.
-card    ../../cards/json/Natural.json
+card    json/Natural.json
 N 85.KJ9862.743.92      | 1NT P            | 2H     | natural: five or more hearts, to play
 N KQ4.AJ83.K92.T76      | 1H P             | 2C     | no Jacoby 2NT
 

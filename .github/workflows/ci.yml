@@ -92,7 +92,7 @@ jobs:
       - name: Rule files
         run: bin/rbb bid check
       - name: Every .test file
-        run: bin/rbb bid test
+        run: bin/rbb bid test conventions cards
       - name: docs/SKILLS.md is current
         run: |
           bin/rbb bid skills --doc docs/SKILLS.md

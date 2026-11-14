@@ -33,7 +33,12 @@ pub const PACK_FILE: &str = "bridge-pack.toml";
 /// `description` and `rule_language_version`.
 pub fn parse_pack(source: &str) -> Result<Manifest, String> {
     let table: toml::Table = toml::from_str(source).map_err(|e| e.message().to_string())?;
-    let text = |key: &str| table.get(key).and_then(toml::Value::as_str).map(str::to_string);
+    let text = |key: &str| {
+        table
+            .get(key)
+            .and_then(toml::Value::as_str)
+            .map(str::to_string)
+    };
     let language = match table.get("rule_language_version") {
         None => return Err("`rule_language_version` is missing".into()),
         Some(toml::Value::Integer(n)) if *n >= 1 && *n <= u32::MAX as i64 => *n as u32,
