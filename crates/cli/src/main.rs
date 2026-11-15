@@ -43,7 +43,7 @@ enum Command {
         #[arg(short, long)]
         limit: Option<usize>,
         /// Directory of .bid modules.
-        #[arg(long, default_value = "pack/pack.json")]
+        #[arg(long, default_value_os_t = default_rules())]
         rules: PathBuf,
         /// Load the rules directory as it was at this git commit (a branch,
         /// tag or hash of the current repository), not from the working
@@ -167,7 +167,7 @@ enum Command {
         ew_set: Vec<String>,
         #[arg(long, default_value = "../Practice-Bidding-Scenarios")]
         pbs: PathBuf,
-        #[arg(long, default_value = "pack/pack.json")]
+        #[arg(long, default_value_os_t = default_rules())]
         rules: PathBuf,
         #[arg(long, default_value = rbb_compare::probe::DEFAULT_BBA_CLI)]
         bba_cli: PathBuf,
@@ -192,7 +192,7 @@ enum Command {
         all: bool,
         #[arg(long, default_value = "../Practice-Bidding-Scenarios")]
         pbs: PathBuf,
-        #[arg(long, default_value = "pack/pack.json")]
+        #[arg(long, default_value_os_t = default_rules())]
         rules: PathBuf,
         #[arg(long, default_value = rbb_compare::probe::DEFAULT_BBA_CLI)]
         bba_cli: PathBuf,
@@ -321,7 +321,7 @@ enum Command {
         #[arg(long)]
         ew_card: Option<PathBuf>,
         /// Directory of .bid modules.
-        #[arg(long, default_value = "pack/pack.json")]
+        #[arg(long, default_value_os_t = default_rules())]
         rules: PathBuf,
         /// Load the rules directory as it was at this git commit (a branch,
         /// tag or hash of the current repository), not from the working
@@ -382,7 +382,7 @@ enum Command {
         #[arg(long = "set")]
         card_changes: Vec<String>,
         /// Directory of .bid modules.
-        #[arg(long, default_value = "pack/pack.json")]
+        #[arg(long, default_value_os_t = default_rules())]
         rules: PathBuf,
         /// Load the rules directory as it was at this git commit (a branch,
         /// tag or hash of the current repository), not from the working
@@ -400,19 +400,19 @@ enum BidCommand {
     /// Parse and check .bid files (directories are searched recursively),
     /// and the card vocabulary they are checked against.
     Check {
-        #[arg(default_value = "pack/pack.json")]
+        #[arg(default_value = ".")]
         paths: Vec<PathBuf>,
         /// The rules directory; the files are checked against its card
         /// vocabulary (its own card/ files, or the standard one).
-        #[arg(long, default_value = "pack/pack.json")]
+        #[arg(long, default_value_os_t = default_rules())]
         rules: PathBuf,
     },
     /// Run the cases in .test files (directories are searched recursively).
     Test {
-        #[arg(default_value = "pack/pack.json")]
+        #[arg(default_value = ".")]
         paths: Vec<PathBuf>,
         /// The rule files the cases run against.
-        #[arg(long, default_value = "pack/pack.json")]
+        #[arg(long, default_value_os_t = default_rules())]
         rules: PathBuf,
         /// Where card names (`card 21GF-DEFAULT`) are looked up as .bbsa.
         #[arg(long, default_value = "cards/bbsa")]
@@ -448,7 +448,7 @@ enum BidCommand {
     Skills {
         /// The rules directory: its .bid files (the card fields and skills
         /// are the standard ones, from the bridge-card crate).
-        #[arg(long, default_value = "pack/pack.json")]
+        #[arg(long, default_value_os_t = default_rules())]
         rules: PathBuf,
         /// Instead of printing, rewrite the generated section of this
         /// Markdown file (docs/SKILLS.md) between its markers.
@@ -492,7 +492,7 @@ enum BidCommand {
         #[arg(long = "set")]
         card_changes: Vec<String>,
         /// Directory of .bid modules.
-        #[arg(long, default_value = "pack/pack.json")]
+        #[arg(long, default_value_os_t = default_rules())]
         rules: PathBuf,
         /// Load the rules directory as it was at this git commit (a branch,
         /// tag or hash of the current repository), not from the working
@@ -528,7 +528,7 @@ enum BidCommand {
         output: Option<PathBuf>,
         /// The rules directory whose card vocabulary the file is checked
         /// against.
-        #[arg(long, default_value = "pack/pack.json")]
+        #[arg(long, default_value_os_t = default_rules())]
         rules: PathBuf,
     },
 }
@@ -548,7 +548,7 @@ enum CardCommand {
         #[arg(long)]
         wrap: bool,
         /// The rules directory whose card vocabulary to use.
-        #[arg(long, default_value = "pack/pack.json")]
+        #[arg(long, default_value_os_t = default_rules())]
         rules: PathBuf,
     },
     /// Convert card JSON to a BBA .bbsa file.
@@ -557,7 +557,7 @@ enum CardCommand {
         #[arg(short, long)]
         output: Option<PathBuf>,
         /// The rules directory whose card vocabulary to use.
-        #[arg(long, default_value = "pack/pack.json")]
+        #[arg(long, default_value_os_t = default_rules())]
         rules: PathBuf,
     },
     /// Load card JSON (bare card_data or Bridge-Classroom's export) and
@@ -565,7 +565,7 @@ enum CardCommand {
     Check {
         file: PathBuf,
         /// The rules directory whose card vocabulary to use.
-        #[arg(long, default_value = "pack/pack.json")]
+        #[arg(long, default_value_os_t = default_rules())]
         rules: PathBuf,
     },
     /// Print the JSON Schema for card JSON.
@@ -573,7 +573,7 @@ enum CardCommand {
         #[arg(short, long)]
         output: Option<PathBuf>,
         /// The rules directory whose card vocabulary to describe.
-        #[arg(long, default_value = "pack/pack.json")]
+        #[arg(long, default_value_os_t = default_rules())]
         rules: PathBuf,
     },
     /// How much of a card our rules read: what they honour, what they
@@ -582,7 +582,7 @@ enum CardCommand {
         /// A .bbsa file or card JSON; several may be given.
         files: Vec<PathBuf>,
         /// Directory of .bid modules.
-        #[arg(long, default_value = "pack/pack.json")]
+        #[arg(long, default_value_os_t = default_rules())]
         rules: PathBuf,
         /// List every setting, not just the counts.
         #[arg(short, long)]
@@ -929,10 +929,7 @@ fn run(cli: Cli) -> Result<()> {
         } => {
             use bridge_types::{Call, ScoringMethod};
             let rules = match &rules_at {
-                Some(r) => rule_set(
-                    rules.as_deref().unwrap_or(Path::new("pack/pack.json")),
-                    Some(r),
-                )?,
+                Some(r) => rule_set(rules.as_deref().unwrap_or(&default_rules()), Some(r))?,
                 None => rules_from(rules.as_deref())?,
             };
             let ew_card = ew_card.unwrap_or_else(|| ns_card.clone());
@@ -1407,6 +1404,24 @@ fn diagnostics(d: Vec<bidspec::Diagnostic>) -> String {
         .map(|d| d.to_string())
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+/// Where `--rules` points when it is not given: the convention pack
+/// built into rbb, written out as a snapshot file so that every command
+/// reads the same rules whatever directory it runs in. The file is named by
+/// the pack's id and written once.
+fn default_rules() -> PathBuf {
+    let path = std::env::temp_dir().join(format!("rbb-pack-{}.json", rbb_assets::PACK_ID));
+    let text = rbb_assets::PACK.1;
+    let current = fs::metadata(&path).is_ok_and(|m| m.len() == text.len() as u64);
+    if !current {
+        // Written beside and renamed, so a reader never sees half a file.
+        let part = path.with_extension(format!("{}.part", std::process::id()));
+        if fs::write(&part, text).is_ok() {
+            let _ = fs::rename(&part, &path);
+        }
+    }
+    path
 }
 
 /// The rule set built into rbb: its rules and their card vocabulary.
