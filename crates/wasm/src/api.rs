@@ -174,9 +174,8 @@ fn embedded_or_report(d: &mut Diags) -> Option<Arc<Rules>> {
 /// The request fields that supply a rule set at run time.
 const RULE_FIELDS: [&str; 5] = ["rules", "fields", "bbsa_map", "manifest", "pack"];
 
-/// The names of the standard card vocabulary's files, which stand in for
-/// `fields` and `bbsa_map` when a request gives `rules` without them.
-const STANDARD_FIELDS: &str = "convention-card/spec/fields.toml";
+/// The name of the standard `.bbsa` map, which stands in for `bbsa_map`
+/// when a request gives `rules` and `fields` without it.
 const STANDARD_BBSA_MAP: &str = "convention-card/spec/formats/bbsa-map.toml";
 
 /// FNV-1a, for the ids of rule sets supplied at run time.
@@ -195,9 +194,8 @@ fn rule_diagnostic(x: &bidspec::Diagnostic, severity: Severity, d: &mut Diags) {
     let col = (x.col > 0).then_some(x.col);
     // The embedded file standing in for a field the request left out (the
     // embedded `.bbsa` map does not fit the fields it gave, say).
-    let embedded = [("fields", STANDARD_FIELDS), ("bbsa_map", STANDARD_BBSA_MAP)]
+    let embedded = [("bbsa_map", Some(STANDARD_BBSA_MAP))]
         .into_iter()
-        .map(|(field, name)| (field, Some(name)))
         .find(|(_, name)| *name == Some(x.file.as_str()));
     let diag = if RULE_FIELDS[1..].contains(&x.file.as_str()) {
         d.push(severity, format!("{}: {}", x.file, x.message))
@@ -235,8 +233,8 @@ const RULE_SETS_KEPT: usize = 4;
 /// rules, or a rule set supplied at run time with `rules` (`{"path.bid":
 /// source, ...}`), `fields` (the text of `fields.toml`), `bbsa_map`
 /// (`bbsa-map.toml`) and `manifest` (`conventions.toml`). `rules` is needed
-/// with the others; `fields` and `bbsa_map` not supplied are the standard
-/// vocabulary, and rules with no manifest are read as the current rule
+/// with the others and `fields` with `rules`; `bbsa_map` not supplied is
+/// the standard one, and rules with no manifest are read as the current rule
 /// language (an `info` says so), as `rbb` reads a directory without one. Or `pack`:
 /// a convention pack's published snapshot, which brings all four.
 fn rules_for(req: &Json, d: &mut Diags) -> Option<Arc<Rules>> {
@@ -362,13 +360,11 @@ fn rules_for(req: &Json, d: &mut Diags) -> Option<Arc<Rules>> {
         }
         None => None,
     };
-    let fields = fields.map_or(
-        (
-            STANDARD_FIELDS.to_string(),
-            bridge_card::standard::FIELDS.to_string(),
-        ),
-        |t| ("fields".into(), t),
-    );
+    let Some(fields) = fields.map(|t| ("fields".to_string(), t)) else {
+        d.error("fields: needed with rules")
+            .hint("give \"fields\": the text of the rule set's fields.toml, or a convention pack's snapshot as \"pack\"");
+        return None;
+    };
     let bbsa_map = bbsa_map.map_or(
         (
             STANDARD_BBSA_MAP.to_string(),

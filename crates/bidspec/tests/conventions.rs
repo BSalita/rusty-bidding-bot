@@ -87,7 +87,7 @@ fn diagnostics_have_locations() {
 
 #[test]
 fn modules_name_their_teaching_skills() {
-    let src = "module demo \"Demo\"\n  card notrump.stayman.play\n  skill bidding_conventions/stayman\n  skill partnership_bidding/stayman_transfers precision/1c_opener\n\nafter 1N (P)\n  2C \"x\"\n";
+    let src = "module demo \"Demo\"\n  convention bidding_conventions/stayman\n  skill bidding_conventions/stayman\n  skill partnership_bidding/stayman_transfers precision/1c_opener\n\nafter 1N (P)\n  2C \"x\"\n";
     let m = bidspec::compile(src, "t.bid", vocab().registry()).unwrap();
     let paths: Vec<(&str, usize)> = m.skills.iter().map(|s| (s.path.as_str(), s.line)).collect();
     assert_eq!(
@@ -123,7 +123,7 @@ fn modules_name_their_teaching_skills() {
 fn named_auction_patterns_parse() {
     let src = "\
 module demo \"Demo\"
-  param kokish = two_level.kokish.play default false
+  param kokish = bidding_conventions/kokish default false
 
 define auction nt2 = 2N (P) | 2C (P) 2D (P) 2N (P)
   2C (P) 2D (P) 2H (P) 2S (P) 2N (P)   when kokish

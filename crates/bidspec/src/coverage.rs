@@ -99,7 +99,14 @@ pub fn of_card(
             continue;
         }
         let note = reg.get(path).is_some_and(|f| f.note);
-        let bucket = if note || NOT_BIDDING.iter().any(|s| path.starts_with(s)) {
+        // A convention pack names a carding convention by its ID
+        // (`defense/smith_echo`); the section is in its card schema 2 path,
+        // which the pack keeps as a spelling.
+        let spellings = reg.get(path).into_iter().flat_map(|f| f.aliases.iter());
+        let not_bidding = std::iter::once(path)
+            .chain(spellings.map(String::as_str))
+            .any(|p| NOT_BIDDING.iter().any(|s| p.starts_with(s)));
+        let bucket = if note || not_bidding {
             &mut cov.other
         } else if read.contains(path) {
             &mut cov.read
@@ -177,7 +184,7 @@ mod tests {
         let read = fields_read(
             &modules(concat!(
                 "module t \"t\"\n",
-                "  card   notrump.stayman.play\n",
+                "  convention bidding_conventions/stayman\n",
                 "\nafter 1N (P)\n  2C \"Stayman\" shows hcp>=8\n"
             )),
             crate::test_vocabulary(),
@@ -193,11 +200,11 @@ mod tests {
         card.set("competitive.ghestem.play", Value::Bool(false))
             .unwrap();
         let cov = of_card("t", &card, vec!["Some Key".into()], &read);
-        assert_eq!(cov.read, ["notrump.stayman.play"]);
-        assert_eq!(cov.ignored, ["competitive.michaels.play"]);
+        assert_eq!(cov.read, ["bidding_conventions/stayman"]);
+        assert_eq!(cov.ignored, ["competitive_bidding/michaels"]);
         assert_eq!(
             cov.other,
-            ["carding.smith_echo", "two_level.two_clubs.notes"],
+            ["defense/smith_echo", "two_level.two_clubs.notes"],
             "play and notes, not bidding"
         );
         assert_eq!(cov.unmapped.len(), 1);
