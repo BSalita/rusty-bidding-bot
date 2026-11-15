@@ -1,21 +1,8 @@
-//! Every module in `conventions/` must compile, and bad input must give
-//! useful diagnostics.
+//! The rule language on small sources: what parses, and that bad input
+//! gives useful diagnostics. The real rule files are a convention pack's;
+//! the engine's tests compile the compiled-in copy.
 
-use std::fs;
-use std::path::Path;
-
-use bidspec::ast::{Alert, CallSpec, Expr, StrainSpec};
-
-fn bid_files(dir: &Path, out: &mut Vec<std::path::PathBuf>) {
-    for entry in fs::read_dir(dir).unwrap() {
-        let path = entry.unwrap().path();
-        if path.is_dir() {
-            bid_files(&path, out);
-        } else if path.extension().is_some_and(|e| e == "bid") {
-            out.push(path);
-        }
-    }
-}
+use bidspec::ast::{Alert, CallSpec, Expr};
 
 /// The standard card vocabulary (convention-card's `spec/`), which these
 /// rules are written against.
@@ -33,65 +20,6 @@ fn the_card_vocabulary_is_valid() {
     assert!(v.registry().fields().len() > 250);
     assert!(v.bbsa_mapping().len() > 130);
     assert_eq!(v.lint(), Vec::<String>::new());
-}
-
-#[test]
-fn all_convention_modules_compile() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../conventions");
-    let mut files = Vec::new();
-    bid_files(&root, &mut files);
-    assert!(files.len() >= 5);
-    for path in files {
-        let src = fs::read_to_string(&path).unwrap();
-        let name = path.display().to_string();
-        match bidspec::compile(&src, &name, vocab().registry()) {
-            Ok(module) => {
-                // The IR round-trips through JSON.
-                let json = bidspec::to_json(&module);
-                let back: bidspec::Module = serde_json::from_str(&json).unwrap();
-                assert_eq!(back, module, "{name}: JSON round trip");
-            }
-            Err(diags) => {
-                let msgs: Vec<String> = diags.iter().map(|d| d.to_string()).collect();
-                panic!("{}", msgs.join("\n"));
-            }
-        }
-    }
-}
-
-#[test]
-fn rkcb_structure() {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../conventions/slam/rkcb-1430.bid");
-    let m = bidspec::compile(
-        &fs::read_to_string(path).unwrap(),
-        "rkcb",
-        vocab().registry(),
-    )
-    .unwrap();
-    assert_eq!(m.name, "rkcb-1430");
-    // It serves 1430 and 0314, so the card fields (switch and style) are
-    // params, not gates.
-    assert!(m.card.is_empty());
-    assert!(m.params.iter().any(|p| p.name == "rstyle"));
-    // Every context is keyed on state, not on an auction: that is the
-    // point of the module. The blocks themselves are found by what they
-    // contain, so restructuring the file does not break this test.
-    assert!(m.contexts.iter().all(|c| c.after.is_none()));
-    let signoff = m
-        .contexts
-        .iter()
-        .map(|c| &c.rules)
-        .find(|rules| {
-            matches!(
-                &rules[0].call,
-                CallSpec::Bid { level: 7, strain: StrainSpec::Interp(t) } if t == "t"
-            )
-        })
-        .expect("the block that answers our keycard ask, grand slam first");
-    assert!(
-        signoff.iter().any(|r| matches!(r.call, CallSpec::Pass)),
-        "and it can stop"
-    );
 }
 
 #[test]
@@ -155,40 +83,6 @@ fn diagnostics_have_locations() {
 
     let e = errors("module demo \"Demo\"\n\nwhen hcp>=\n");
     assert!(e[0].starts_with("t.bid:3:"), "{e:?}");
-}
-
-/// docs/SKILLS.md carries the output of `rbb bid skills`, and every skill
-/// a module or field names is a standard convention or skill
-/// (convention-card's `spec/conventions/`).
-/// Regenerate with `cargo run -q -p rbb-cli -- bid skills --doc docs/SKILLS.md`.
-#[test]
-fn skills_doc_carries_the_map() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../conventions");
-    let known = bridge_card::standard::conventions().unwrap_or_else(|e| panic!("{e}"));
-    let mut files = Vec::new();
-    bid_files(&root, &mut files);
-    files.sort();
-    let modules: Vec<bidspec::Module> = files
-        .iter()
-        .map(|p| {
-            let src = fs::read_to_string(p).unwrap();
-            bidspec::compile(&src, &p.display().to_string(), vocab().registry()).unwrap()
-        })
-        .collect();
-    let unknown = bidspec::skills::check(&modules, vocab().registry(), &known, "fields.toml");
-    assert!(unknown.is_empty(), "{unknown:?}");
-    let map = bidspec::skills::map(&modules, vocab().registry(), &known);
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/SKILLS.md");
-    // A Windows checkout without .gitattributes has CRLF line ends.
-    let doc = fs::read_to_string(&path)
-        .expect("docs/SKILLS.md")
-        .replace("\r\n", "\n");
-    let want = bidspec::skills::splice(&doc, &bidspec::skills::markdown(&map)).expect("markers");
-    assert!(
-        doc == want,
-        "docs/SKILLS.md's skill map is out of date: run \
-         `cargo run -q -p rbb-cli -- bid skills --doc docs/SKILLS.md`"
-    );
 }
 
 #[test]

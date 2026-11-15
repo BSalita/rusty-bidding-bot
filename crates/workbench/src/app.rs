@@ -2026,8 +2026,12 @@ mod tests {
     /// A second run with nothing changed takes every case from the cache.
     #[test]
     fn cases_rerun_only_what_changed() {
+        // The cases are a convention pack's `.test` files, which live in
+        // its repository: RBB_PACK_DIR names a checkout.
+        let Some(rules) = std::env::var_os("RBB_PACK_DIR").map(PathBuf::from) else {
+            return;
+        };
         let here = Path::new(env!("CARGO_MANIFEST_DIR"));
-        let rules = here.join("../../conventions");
         let cards = here.join("../../cards/bbsa");
         let cache = CaseCache::default();
         let first = run_cases(&rules, &cards, &cache).expect("the cases run");
@@ -2054,7 +2058,7 @@ mod tests {
             pbs: here.join("../compare/tests/fixtures/pbs"),
             scenarios: vec![],
             limit: None,
-            rules: here.join("../../conventions"),
+            rules: here.join("../../pack/pack.json"),
             par: false,
             par_all: false,
             dd_cache: std::env::temp_dir().join("rbb-workbench-app-test-dd.jsonl"),

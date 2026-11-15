@@ -174,6 +174,11 @@ fn embedded_or_report(d: &mut Diags) -> Option<Arc<Rules>> {
 /// The request fields that supply a rule set at run time.
 const RULE_FIELDS: [&str; 5] = ["rules", "fields", "bbsa_map", "manifest", "pack"];
 
+/// The names of the standard card vocabulary's files, which stand in for
+/// `fields` and `bbsa_map` when a request gives `rules` without them.
+const STANDARD_FIELDS: &str = "convention-card/spec/fields.toml";
+const STANDARD_BBSA_MAP: &str = "convention-card/spec/formats/bbsa-map.toml";
+
 /// FNV-1a, for the ids of rule sets supplied at run time.
 fn fnv(h: &mut u64, bytes: &[u8]) {
     for b in bytes {
@@ -190,13 +195,10 @@ fn rule_diagnostic(x: &bidspec::Diagnostic, severity: Severity, d: &mut Diags) {
     let col = (x.col > 0).then_some(x.col);
     // The embedded file standing in for a field the request left out (the
     // embedded `.bbsa` map does not fit the fields it gave, say).
-    let embedded = [
-        ("fields", Some(rbb_assets::FIELDS.0)),
-        ("bbsa_map", Some(rbb_assets::BBSA_MAP.0)),
-        ("manifest", rbb_assets::MANIFEST.map(|m| m.0)),
-    ]
-    .into_iter()
-    .find(|(_, name)| *name == Some(x.file.as_str()));
+    let embedded = [("fields", STANDARD_FIELDS), ("bbsa_map", STANDARD_BBSA_MAP)]
+        .into_iter()
+        .map(|(field, name)| (field, Some(name)))
+        .find(|(_, name)| *name == Some(x.file.as_str()));
     let diag = if RULE_FIELDS[1..].contains(&x.file.as_str()) {
         d.push(severity, format!("{}: {}", x.file, x.message))
     } else if let Some((field, _)) = embedded {
@@ -232,10 +234,10 @@ const RULE_SETS_KEPT: usize = 4;
 /// The rules a request asks for, when it names no engine: the embedded
 /// rules, or a rule set supplied at run time with `rules` (`{"path.bid":
 /// source, ...}`), `fields` (the text of `fields.toml`), `bbsa_map`
-/// (`bbsa-map.toml`) and `manifest` (`conventions.toml`). What is not
-/// supplied comes from the embedded rules, except the manifest when `rules`
-/// is given: rules with no manifest are read as the current rule language
-/// (an `info` says so), as `rbb` reads a directory without one. Or `pack`:
+/// (`bbsa-map.toml`) and `manifest` (`conventions.toml`). `rules` is needed
+/// with the others; `fields` and `bbsa_map` not supplied are the standard
+/// vocabulary, and rules with no manifest are read as the current rule
+/// language (an `info` says so), as `rbb` reads a directory without one. Or `pack`:
 /// a convention pack's published snapshot, which brings all four.
 fn rules_for(req: &Json, d: &mut Diags) -> Option<Arc<Rules>> {
     if RULE_FIELDS.iter().all(|f| req.get(f).is_none()) {
@@ -304,10 +306,11 @@ fn rules_for(req: &Json, d: &mut Diags) -> Option<Arc<Rules>> {
     let bbsa_map = text("bbsa_map", d)?;
     let manifest = text("manifest", d)?;
     let mut files: Vec<(String, String)> = match req.get("rules") {
-        None | Some(Json::Null) => rbb_assets::RULE_FILES
-            .iter()
-            .map(|(n, s)| (n.to_string(), s.to_string()))
-            .collect(),
+        None | Some(Json::Null) => {
+            d.error("rules: needed with fields, bbsa_map or manifest")
+                .hint("give \"rules\": {\"path/file.bid\": \"source\", ...}, or a convention pack's snapshot as \"pack\"");
+            return None;
+        }
         Some(Json::Object(m)) => {
             let mut files = Vec::new();
             let mut other = Vec::new();
@@ -357,19 +360,19 @@ fn rules_for(req: &Json, d: &mut Diags) -> Option<Arc<Rules>> {
             .hint("give \"manifest\": the text of the rule set's conventions.toml");
             None
         }
-        None => rbb_assets::MANIFEST.map(|(n, t)| (n.to_string(), t.to_string())),
+        None => None,
     };
     let fields = fields.map_or(
         (
-            rbb_assets::FIELDS.0.to_string(),
-            rbb_assets::FIELDS.1.to_string(),
+            STANDARD_FIELDS.to_string(),
+            bridge_card::standard::FIELDS.to_string(),
         ),
         |t| ("fields".into(), t),
     );
     let bbsa_map = bbsa_map.map_or(
         (
-            rbb_assets::BBSA_MAP.0.to_string(),
-            rbb_assets::BBSA_MAP.1.to_string(),
+            STANDARD_BBSA_MAP.to_string(),
+            bridge_card::standard::BBSA_MAP.to_string(),
         ),
         |t| ("bbsa_map".into(), t),
     );
@@ -2075,7 +2078,7 @@ mod tests {
         // Same answer as the engine on the files, through rbb-assets.
         let rules = rbb_engine::load_rules(std::path::Path::new(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../conventions"
+            "/../../pack/pack.json"
         )))
         .unwrap();
         let stock = |name: &str| {
@@ -2598,10 +2601,7 @@ mod tests {
             r#"{"cards": {"ns": "21GF-DEFAULT"}, "hand": "AK52.KJ7.Q94.K83",
                 "dealer": "N", "auction": ""}"#,
         ));
-        assert_eq!(
-            std["rule"]["file"], "rules/notrump/one-nt.bid",
-            "{std}"
-        );
+        assert_eq!(std["rule"]["file"], "rules/notrump/one-nt.bid", "{std}");
 
         // conventions, coverage and exportCard follow the engine's rules.
         let c = parse(&conventions(&format!(r#"{{"engine": {id}}}"#)));
@@ -2752,23 +2752,38 @@ mod tests {
         assert_eq!(r["call"], "1NT", "{r}");
     }
 
+    /// What the rule checker page sends: the compiled-in pack with its
+    /// rule files replaced, or added to, by the files open in the page.
     #[test]
-    fn a_vocabulary_alone_keeps_the_embedded_rules() {
-        // The embedded rules against a copy of their own vocabulary: the
-        // same rule set, so the same calls.
-        let req = json!({"fields": rbb_assets::FIELDS.1, "bbsa_map": rbb_assets::BBSA_MAP.1});
-        let v = parse(&validate(&req.to_string()));
+    fn a_pack_with_other_rule_files_is_checked_against_its_names() {
+        let mut pack: Json = serde_json::from_str(rbb_assets::PACK.1).unwrap();
+        let ours = pack["files"].as_object().unwrap().len();
+        let mine = "module demo \"Demo\"\n  convention bidding_conventions/stayman\n\nafter 1N (P)\n  2C  \"Demo\"\n      shows hcp>=8\n";
+        // Added to ours.
+        pack["files"]["mine/demo.bid"] = json!(mine);
+        let v = parse(&validate(&json!({"pack": pack}).to_string()));
+        assert_eq!(v["rule_set"]["rule_files"], ours + 1, "{v}");
+        // On their own: the pack's names, no other rules.
+        pack["files"] = json!({"mine/demo.bid": mine});
+        let v = parse(&validate(&json!({"pack": pack}).to_string()));
         assert_eq!(v["ok"], true, "{v}");
-        assert_eq!(
-            v["rule_set"]["rule_files"].as_u64().unwrap() as usize,
-            rbb_assets::RULE_FILES.len()
-        );
-        // A vocabulary without the fields the embedded rules read refuses.
+        assert_eq!(v["rule_set"]["rule_files"], 1, "{v}");
+        // A name the pack does not have is reported in the file.
+        pack["files"] = json!({"mine/demo.bid": mine.replace("stayman", "no_such_thing")});
+        let v = parse(&validate(&json!({"pack": pack}).to_string()));
+        assert_eq!(v["ok"], false, "{v}");
+        assert_eq!(error(&v)["file"], "mine/demo.bid", "{v}");
+    }
+
+    #[test]
+    fn a_vocabulary_alone_is_refused() {
+        // The embedded rules are a convention pack, which brings its own
+        // vocabulary: separate fields need their rules.
         let v = parse(&validate(r#"{"fields": ""}"#));
         assert_eq!(v["ok"], false);
         assert!(error(&v)["message"]
             .as_str()
             .unwrap()
-            .starts_with("bbsa_map: the embedded convention-card/spec/formats/bbsa-map.toml"));
+            .starts_with("rules: needed with fields"));
     }
 }
