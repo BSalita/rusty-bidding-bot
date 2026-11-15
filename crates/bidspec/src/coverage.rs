@@ -54,18 +54,62 @@ impl Coverage {
     }
 }
 
-/// Every card path the rules name, directly or through a derivation in
-/// `vocab` (the rules' own vocabulary).
+/// Every card path the rules name, directly or indirectly, by the name a
+/// card lists it under. Indirectly:
+///
+/// - through a derivation in `vocab` (the rules' own vocabulary);
+/// - with a convention pack, a convention whose rules read one of its
+///   treatments or places (`<id>:over_1nt`) reads the convention's own
+///   switch, and a rule that reads a function's part
+///   (`defence_to_1nt.strong`) reads the setting that part replaced and
+///   each convention filling that part that a module implements.
 pub fn fields_read(modules: &[Module], vocab: &Vocabulary) -> BTreeSet<String> {
+    // A rule, and the `.bbsa` map's derivations, may name a setting by any
+    // of its spellings (a pack's address, or the card path it replaced); a
+    // card lists it by the canonical one.
+    let reg = vocab.registry();
+    let canonical = |p: &str| reg.get(p).map_or_else(|| p.to_string(), |f| f.path.clone());
     let mut read: BTreeSet<String> = BTreeSet::new();
     for m in modules {
-        read.extend(m.card.iter().map(|c| c.path.clone()));
-        read.extend(m.params.iter().map(|p| p.path.clone()));
+        read.extend(m.card.iter().map(|c| canonical(&c.path)));
+        read.extend(m.params.iter().map(|p| canonical(&p.path)));
+    }
+    if let Some(pack) = vocab.pack() {
+        let of_conventions: Vec<String> = read
+            .iter()
+            .filter_map(|p| p.split_once(':').map(|(id, _)| id.to_string()))
+            .collect();
+        read.extend(of_conventions);
+        let implemented: BTreeSet<&str> = modules
+            .iter()
+            .flat_map(|m| m.skills.iter().map(|s| s.path.as_str()))
+            .collect();
+        for (address, setting) in pack.function_settings() {
+            if !read.contains(&canonical(&address)) {
+                continue;
+            }
+            read.insert(canonical(&setting));
+            // The conventions that fill this part are chosen through it: one
+            // a module implements is read when the part is.
+            let Some((name, part)) = address.split_once('.') else {
+                continue;
+            };
+            for (id, parts) in pack
+                .function(name)
+                .into_iter()
+                .flat_map(|f| &f.implementers)
+            {
+                let fills = parts.is_empty() || parts.iter().any(|p| p == part);
+                if fills && implemented.contains(id.as_str()) {
+                    read.insert(id.clone());
+                }
+            }
+        }
     }
     // A field feeding a derivation counts as read when the derived field is.
     for (inputs, outputs) in vocab.bbsa_derivations() {
-        if outputs.iter().any(|o| read.contains(o)) {
-            read.extend(inputs);
+        if outputs.iter().any(|o| read.contains(&canonical(o))) {
+            read.extend(inputs.iter().map(|i| canonical(i)));
         }
     }
     read
@@ -168,15 +212,40 @@ mod tests {
             )),
             crate::test_vocabulary(),
         );
-        assert!(read.contains("notrump.stayman.play"));
-        assert!(read.contains("notrump.minor_transfers.style"));
+        // By the name a card lists each under: the pack's address.
+        assert!(read.contains("bidding_conventions/stayman"), "{read:?}");
+        assert!(read.contains("bidding_conventions/minor_suit_transfers:style"));
+        // A convention is read when one of its treatments is.
+        assert!(read.contains("bidding_conventions/minor_suit_transfers"));
         // `minor_transfers` is derived from BBA's four switches, so those
         // count as read even though no rule names them.
         assert!(
-            read.contains("notrump.minor_transfers.two_s_clubs"),
+            read.contains("bidding_conventions/minor_suit_transfers:two_s_clubs"),
             "derivation inputs count as read: {read:?}"
         );
-        assert!(!read.contains("competitive.michaels.play"));
+        assert!(!read.contains("competitive_bidding/michaels"));
+    }
+
+    #[test]
+    fn a_function_part_reads_its_setting_and_the_conventions_implemented() {
+        let read = fields_read(
+            &modules(concat!(
+                "module t \"t\"\n",
+                "  skill  competitive_bidding/cappelletti\n",
+                "  param  def = defence_to_1nt.strong\n",
+                "\nafter (1N) when def is competitive_bidding/cappelletti\n  2C \"x\"\n"
+            )),
+            crate::test_vocabulary(),
+        );
+        // What a card read from an older form lists the choice under.
+        assert!(
+            read.contains("competitive.vs_1nt_strong.system"),
+            "{read:?}"
+        );
+        // The convention chosen through the part, which this module implements...
+        assert!(read.contains("competitive_bidding/cappelletti"));
+        // ...and not one that no module does.
+        assert!(!read.contains("competitive_bidding/dont"));
     }
 
     #[test]

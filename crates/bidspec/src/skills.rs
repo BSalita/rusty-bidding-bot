@@ -436,7 +436,7 @@ mod tests {
         assert_eq!(inv.modules[0].rules, 2);
         assert!(inv
             .fields_read
-            .contains(&"notrump.stayman.play".to_string()));
+            .contains(&"bidding_conventions/stayman".to_string()));
     }
 
     #[test]
