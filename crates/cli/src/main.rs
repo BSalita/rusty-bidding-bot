@@ -1411,12 +1411,7 @@ fn diagnostics(d: Vec<bidspec::Diagnostic>) -> String {
 
 /// The rule set built into rbb: its rules and their card vocabulary.
 fn embedded_rules() -> std::result::Result<RuleSet, Vec<bidspec::Diagnostic>> {
-    rbb_engine::compile_rules(
-        rbb_assets::MANIFEST,
-        rbb_assets::FIELDS,
-        rbb_assets::BBSA_MAP,
-        rbb_assets::RULE_FILES.iter().copied(),
-    )
+    rbb_engine::compile_snapshot(rbb_assets::PACK.1, rbb_assets::PACK.0)
 }
 
 /// The rule set in `dir` (its `.bid` files and `card/` vocabulary), or with
@@ -1888,7 +1883,7 @@ fn bid(cmd: BidCommand) -> Result<()> {
             let rules_id = if rules.is_some() {
                 "from files".to_string()
             } else {
-                rbb_assets::RULES_ID.to_string()
+                rbb_assets::PACK_ID.to_string()
             };
             let header = format!(
                 "rusty-bidding-bot conventions reference\nrbb {} rules {rules_id}",

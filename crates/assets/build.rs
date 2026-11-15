@@ -158,6 +158,28 @@ fn main() {
              pub static BBSA_MAP: (&str, &str) = (\"convention-card/spec/formats/bbsa-map.toml\", bridge_card::standard::BBSA_MAP);\n\n",
         );
     }
+    // The convention pack's published snapshot (`pack/pack.json`, copied by
+    // `scripts/sync_pack.py`): the rules rbb bids with when it is given no
+    // others. Its id is the rules number and a hash of the text.
+    let pack = root.join("pack/pack.json");
+    println!("cargo:rerun-if-changed={}", pack.display());
+    let pack_text = std::fs::read_to_string(&pack)
+        .unwrap_or_else(|e| panic!("{}: {e} (python3 scripts/sync_pack.py)", pack.display()));
+    let mut pack_hash: u64 = 0xcbf2_9ce4_8422_2325;
+    fnv(&mut pack_hash, pack_text.as_bytes());
+    // `"rules_number": 21,` near the top, written by the sync script.
+    let number = pack_text
+        .split("\"rules_number\":")
+        .nth(1)
+        .and_then(|rest| rest.split(',').next())
+        .and_then(|n| n.trim().parse::<u64>().ok())
+        .unwrap_or_else(|| panic!("{}: no rules_number", pack.display()));
+    writeln!(
+        out,
+        "/// The convention pack's snapshot rbb bids with by default: (name, text).\npub static PACK: (&str, &str) = (\"pack/pack.json\", include_str!({:?}));\n\n/// The pack's rules number.\npub const PACK_RULES_NUMBER: u64 = {number};\n\n/// Identifies the compiled-in pack: its rules number and a hash of its text.\npub const PACK_ID: &str = \"{number}-{pack_hash:016x}\";\n",
+        pack.display().to_string()
+    )
+    .unwrap();
     out.push_str("/// Stock cards: (name, .bbsa text).\n");
     out.push_str("pub static CARDS: &[(&str, &str)] = &[\n");
     for abs in &cards {

@@ -138,17 +138,14 @@ struct Rules {
 fn embedded_rules() -> &'static Result<Arc<Rules>, Vec<bidspec::Diagnostic>> {
     static RULES: OnceLock<Result<Arc<Rules>, Vec<bidspec::Diagnostic>>> = OnceLock::new();
     RULES.get_or_init(|| {
-        rbb_engine::compile_rules(
-            rbb_assets::MANIFEST,
-            rbb_assets::FIELDS,
-            rbb_assets::BBSA_MAP,
-            rbb_assets::RULE_FILES.iter().copied(),
-        )
-        .map(|set| {
+        rbb_engine::compile_snapshot(rbb_assets::PACK.1, rbb_assets::PACK.0).map(|set| {
+            let files = serde_json::from_str::<Json>(rbb_assets::PACK.1)
+                .map(|doc| rbb_engine::snapshot_rule_files(&doc).len())
+                .unwrap_or(0);
             Arc::new(Rules {
                 set,
-                id: rbb_assets::RULES_ID.to_string(),
-                files: rbb_assets::RULE_FILES.len(),
+                id: rbb_assets::PACK_ID.to_string(),
+                files,
             })
         })
     })
@@ -1193,7 +1190,7 @@ pub fn info() -> String {
         json!({
             "api": API_VERSION,
             "version": env!("CARGO_PKG_VERSION"),
-            "rules_id": rbb_assets::RULES_ID,
+            "rules_id": rbb_assets::PACK_ID,
             "rule_files": files,
             "modules": modules,
             "rules": rules,
@@ -2244,7 +2241,7 @@ mod tests {
         assert_eq!(r["next"], "S");
         assert_eq!(r["complete"], false);
         assert_eq!(r["cards"]["ns"], "21GF-DEFAULT");
-        assert_eq!(r["rules_id"], rbb_assets::RULES_ID);
+        assert_eq!(r["rules_id"], rbb_assets::PACK_ID);
         assert!(r["diagnostics"]
             .as_array()
             .unwrap()
@@ -2483,7 +2480,7 @@ mod tests {
                 .as_array()
                 .unwrap()
                 .iter()
-                .any(|p| p == "notrump.stayman.play"),
+                .any(|p| p == "bidding_conventions/stayman"),
             "{c}"
         );
         assert_eq!(c["ns"]["unmapped"], json!(["notrump.mystery.on"]));
@@ -2568,7 +2565,7 @@ mod tests {
         let e = parse(&create_engine(&req.to_string()));
         assert_eq!(e["ok"], true, "{e}");
         assert_eq!(e["ns"]["modules"], json!(["demo"]), "{e}");
-        assert_ne!(e["rules_id"], rbb_assets::RULES_ID);
+        assert_ne!(e["rules_id"], rbb_assets::PACK_ID);
         let id = e["engine"].as_u64().unwrap();
         let bid_with = |engine: u64| {
             parse(&bid(&json!({"engine": engine, "hand": "AK52.KJ7.Q94.K83",
@@ -2602,7 +2599,7 @@ mod tests {
                 "dealer": "N", "auction": ""}"#,
         ));
         assert_eq!(
-            std["rule"]["file"], "conventions/notrump/one-nt.bid",
+            std["rule"]["file"], "rules/notrump/one-nt.bid",
             "{std}"
         );
 
@@ -2746,7 +2743,7 @@ mod tests {
             &json!({"pack": text, "cards": {"ns": {"stock": "21GF-DEFAULT"}}}).to_string(),
         ));
         assert_eq!(e["ok"], true, "{e}");
-        assert_ne!(e["rules_id"], rbb_assets::RULES_ID);
+        assert_ne!(e["rules_id"], rbb_assets::PACK_ID);
         let r = parse(&bid(
             &json!({"engine": e["engine"], "hand": "AK52.KJ7.Q94.K83",
                                     "dealer": "N", "auction": ""})
