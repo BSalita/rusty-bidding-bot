@@ -23,7 +23,7 @@ pub fn info() -> String {
     api::info()
 }
 
-/// `{"cards": {...}, "rules"?, "fields"?, "bbsa_map"?, "manifest"?}` → `{ok, engine, rules_id, ns, ew, diagnostics}`
+/// `{"cards": {...}, "rules"?, "fields"?, "bbsa_map"?, "manifest"?, "pack"?}` → `{ok, engine, rules_id, ns, ew, diagnostics}`
 #[wasm_bindgen(js_name = createEngine)]
 pub fn create_engine(request: &str) -> String {
     api::create_engine(request)

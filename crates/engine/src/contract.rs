@@ -61,6 +61,18 @@ fn check_language(m: Manifest, file: &str) -> Result<Manifest, Diagnostic> {
 /// none. A directory without a manifest is read as the current language
 /// version (`rbb bid check` warns about it).
 pub fn read_manifest(dir: &Path) -> Result<Option<Manifest>, Diagnostic> {
+    // A pack's published snapshot (`pack.json`) carries the manifest too.
+    if dir.is_file() {
+        let name = dir.display().to_string();
+        let fail = |message: String| Diagnostic {
+            file: name.clone(),
+            line: 0,
+            col: 0,
+            message,
+        };
+        let text = std::fs::read_to_string(dir).map_err(|e| fail(e.to_string()))?;
+        return snapshot_manifest(&text, &name).map(Some);
+    }
     // A convention pack says its rule language in `bridge-pack.toml`
     // (`rule_language_version`), with the pack's name.
     let pack = dir.join(manifest::PACK_FILE);
@@ -86,6 +98,36 @@ pub fn read_manifest(dir: &Path) -> Result<Option<Manifest>, Diagnostic> {
             message: e.to_string(),
         }),
     }
+}
+
+/// The manifest inside a pack's published snapshot (`pack.json`: its
+/// `pack` key is `bridge-pack.toml`, parsed), checked.
+pub fn snapshot_manifest(text: &str, name: &str) -> Result<Manifest, Diagnostic> {
+    let fail = |message: String| Diagnostic {
+        file: name.to_string(),
+        line: 0,
+        col: 0,
+        message,
+    };
+    let doc: serde_json::Value = serde_json::from_str(text).map_err(|e| fail(e.to_string()))?;
+    let pack = doc
+        .get("pack")
+        .filter(|_| doc.get("schema").and_then(|s| s.as_str()) == Some("pack/v1"))
+        .ok_or_else(|| fail("not a pack snapshot (`schema` is not \"pack/v1\")".into()))?;
+    let text_of = |key: &str| pack.get(key).and_then(|v| v.as_str()).map(str::to_string);
+    let language = pack
+        .get("rule_language_version")
+        .and_then(|v| v.as_u64())
+        .filter(|n| *n >= 1 && *n <= u32::MAX as u64)
+        .ok_or_else(|| fail("`rule_language_version` must be a whole number from 1".into()))?;
+    let m = Manifest {
+        name: text_of("name").ok_or_else(|| fail("`name` is missing".into()))?,
+        description: text_of("description"),
+        language: language as u32,
+        engine: None,
+        unknown_keys: Vec::new(),
+    };
+    check_language(m, name)
 }
 
 /// The markers around the generated term reference in docs/CONTRACT.md.

@@ -62,8 +62,8 @@ pub fn suit_of(strain: bridge_types::Strain) -> Option<bridge_types::Suit> {
     }
 }
 pub use contract::{
-    check_manifest, read_manifest, splice_terms, LANGUAGE_VERSION, OLDEST_LANGUAGE_VERSION,
-    TERMS_BEGIN, TERMS_END,
+    check_manifest, read_manifest, snapshot_manifest, splice_terms, LANGUAGE_VERSION,
+    OLDEST_LANGUAGE_VERSION, TERMS_BEGIN, TERMS_END,
 };
 pub use eval::{check_terms, terms_reference, Term};
 pub use system::{check_card_refs, RuleRef, System};
@@ -99,7 +99,16 @@ fn vocab_diagnostic(e: bridge_card::Error) -> bidspec::Diagnostic {
 /// the standard vocabulary built into `bridge_card` (convention-card's
 /// `spec/`, at the tag Cargo.toml pins).
 pub fn rules_vocabulary(dir: &Path) -> Result<Vocabulary, bridge_card::Error> {
-    if bridge_card::Pack::is_pack(dir) {
+    if dir.is_file() {
+        // A pack's published snapshot (`pack.json`).
+        let name = dir.display().to_string();
+        let text = std::fs::read_to_string(dir).map_err(|e| bridge_card::Error {
+            message: e.to_string(),
+            file: Some(name),
+            line: None,
+        })?;
+        Vocabulary::from_snapshot(&text, bridge_card::standard::BBSA_MAP)
+    } else if bridge_card::Pack::is_pack(dir) {
         // A convention pack (bridge-common-conventions): conventions,
         // treatments and settings named by address, with card schema 2's
         // paths as aliases. The `.bbsa` map is still convention-card's.
@@ -117,6 +126,18 @@ pub fn rules_vocabulary(dir: &Path) -> Result<Vocabulary, bridge_card::Error> {
 /// `.bid` file under it, compiled against that vocabulary and sorted by
 /// path (which fixes the file-order tie-breaker).
 pub fn load_rules(dir: &Path) -> Result<RuleSet, Vec<bidspec::Diagnostic>> {
+    if dir.is_file() {
+        let name = dir.display().to_string();
+        let text = std::fs::read_to_string(dir).map_err(|e| {
+            vec![bidspec::Diagnostic {
+                file: name.clone(),
+                line: 0,
+                col: 0,
+                message: e.to_string(),
+            }]
+        })?;
+        return compile_snapshot(&text, &name);
+    }
     let manifest = read_manifest(dir).map_err(|d| vec![d])?;
     let vocab = rules_vocabulary(dir).map_err(|e| vec![vocab_diagnostic(e)])?;
     compile_dir(dir, &vocab).map(|modules| RuleSet {
@@ -156,6 +177,48 @@ pub fn compile_rules<'a>(
     })
 }
 
+/// The rule files in a pack's published snapshot, `(name, source)` in the
+/// order a directory of them is read: by path, component by component.
+pub fn snapshot_rule_files(doc: &serde_json::Value) -> Vec<(&str, &str)> {
+    let mut files: Vec<(&str, &str)> = doc
+        .get("files")
+        .and_then(|f| f.as_object())
+        .into_iter()
+        .flatten()
+        .filter(|(name, _)| name.ends_with(".bid"))
+        .filter_map(|(name, text)| Some((name.as_str(), text.as_str()?)))
+        .collect();
+    files.sort_by(|a, b| a.0.split('/').cmp(b.0.split('/')));
+    files
+}
+
+/// The rule set in a pack's published snapshot (`pack.json`, as
+/// bridge-common-conventions' `published` branch carries it): its manifest,
+/// its vocabulary and every rule file, as [`load_rules`] gives them for the
+/// pack's source tree. `name` is the snapshot's, for diagnostics. Needs no
+/// filesystem: what the WASM build and a host that fetched the snapshot use.
+pub fn compile_snapshot(text: &str, name: &str) -> Result<RuleSet, Vec<bidspec::Diagnostic>> {
+    let manifest = snapshot_manifest(text, name).map_err(|d| vec![d])?;
+    let vocab =
+        Vocabulary::from_snapshot(text, bridge_card::standard::BBSA_MAP).map_err(|mut e| {
+            e.file = Some(name.to_string());
+            vec![vocab_diagnostic(e)]
+        })?;
+    let doc: serde_json::Value = serde_json::from_str(text).map_err(|e| {
+        vec![bidspec::Diagnostic {
+            file: name.to_string(),
+            line: 0,
+            col: 0,
+            message: e.to_string(),
+        }]
+    })?;
+    compile_modules(&vocab, snapshot_rule_files(&doc)).map(|modules| RuleSet {
+        manifest: Some(manifest),
+        vocab,
+        modules,
+    })
+}
+
 /// Compile every `.bid` file under `dir` against `vocab`, sorted by path
 /// (which fixes the file-order tie-breaker). A manifest (`conventions.toml`)
 /// in `dir` that asks for a rule language this engine does not read
@@ -166,6 +229,21 @@ pub fn load_modules(
     vocab: &Vocabulary,
 ) -> Result<Vec<bidspec::Module>, Vec<bidspec::Diagnostic>> {
     read_manifest(dir).map_err(|d| vec![d])?;
+    if dir.is_file() {
+        let name = dir.display().to_string();
+        let fail = |message: String| {
+            vec![bidspec::Diagnostic {
+                file: name.clone(),
+                line: 0,
+                col: 0,
+                message,
+            }]
+        };
+        let text = std::fs::read_to_string(dir).map_err(|e| fail(e.to_string()))?;
+        let doc: serde_json::Value =
+            serde_json::from_str(&text).map_err(|e| fail(e.to_string()))?;
+        return compile_modules(vocab, snapshot_rule_files(&doc));
+    }
     compile_dir(dir, vocab)
 }
 

@@ -175,7 +175,7 @@ fn embedded_or_report(d: &mut Diags) -> Option<Arc<Rules>> {
 }
 
 /// The request fields that supply a rule set at run time.
-const RULE_FIELDS: [&str; 4] = ["rules", "fields", "bbsa_map", "manifest"];
+const RULE_FIELDS: [&str; 5] = ["rules", "fields", "bbsa_map", "manifest", "pack"];
 
 /// FNV-1a, for the ids of rule sets supplied at run time.
 fn fnv(h: &mut u64, bytes: &[u8]) {
@@ -238,10 +238,60 @@ const RULE_SETS_KEPT: usize = 4;
 /// (`bbsa-map.toml`) and `manifest` (`conventions.toml`). What is not
 /// supplied comes from the embedded rules, except the manifest when `rules`
 /// is given: rules with no manifest are read as the current rule language
-/// (an `info` says so), as `rbb` reads a directory without one.
+/// (an `info` says so), as `rbb` reads a directory without one. Or `pack`:
+/// a convention pack's published snapshot, which brings all four.
 fn rules_for(req: &Json, d: &mut Diags) -> Option<Arc<Rules>> {
     if RULE_FIELDS.iter().all(|f| req.get(f).is_none()) {
         return embedded_or_report(d);
+    }
+    // A convention pack's published snapshot (`pack.json`), as text or
+    // already parsed: its rules, vocabulary and manifest together. The host
+    // fetches it; nothing else is taken from the embedded rules.
+    if let Some(pack) = req.get("pack").filter(|v| !v.is_null()) {
+        if RULE_FIELDS[..4]
+            .iter()
+            .any(|f| req.get(f).is_some_and(|v| !v.is_null()))
+        {
+            d.error("pack: a snapshot brings its own rules, fields and manifest")
+                .hint("give \"pack\" alone, or the separate fields without it");
+            return None;
+        }
+        let text = match pack {
+            Json::String(s) => s.clone(),
+            Json::Object(_) => pack.to_string(),
+            _ => {
+                d.error("pack: expected the snapshot (pack.json), as text or as an object");
+                return None;
+            }
+        };
+        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+        fnv(&mut h, text.as_bytes());
+        let id = format!("{h:016x}");
+        if let Some(found) = RULE_SETS.with(|r| r.borrow().iter().find(|x| x.id == id).cloned()) {
+            return Some(found);
+        }
+        return match rbb_engine::compile_snapshot(&text, "pack") {
+            Ok(set) => {
+                let files = serde_json::from_str::<Json>(&text)
+                    .map(|doc| rbb_engine::snapshot_rule_files(&doc).len())
+                    .unwrap_or(0);
+                let rules = Arc::new(Rules { set, id, files });
+                RULE_SETS.with(|r| {
+                    let mut r = r.borrow_mut();
+                    r.push(rules.clone());
+                    if r.len() > RULE_SETS_KEPT {
+                        r.remove(0);
+                    }
+                });
+                Some(rules)
+            }
+            Err(errors) => {
+                for e in &errors {
+                    rule_diagnostic(e, Severity::Error, d);
+                }
+                None
+            }
+        };
     }
     let text = |field: &str, d: &mut Diags| -> Option<Option<String>> {
         match req.get(field) {
@@ -2646,6 +2696,63 @@ mod tests {
                 .as_str()
                 .unwrap()
                 .starts_with("manifest: none given")));
+    }
+
+    /// A convention pack's published snapshot, handed over by the host,
+    /// is the whole rule set. The snapshot is content, not part of this
+    /// repository: the bidding half of the test reads it from
+    /// `RBB_PACK_SNAPSHOT` (a `pack.json`) and passes without it.
+    #[test]
+    fn a_pack_snapshot_is_a_rule_set() {
+        // Not a snapshot.
+        let v = parse(&validate(r#"{"pack": {"schema": "other"}}"#));
+        assert_eq!(v["ok"], false);
+        assert!(
+            error(&v)["message"]
+                .as_str()
+                .unwrap()
+                .contains("not a pack snapshot"),
+            "{v}"
+        );
+        // A snapshot brings everything; mixing it with the separate fields
+        // is refused.
+        let v = parse(&validate(
+            r#"{"pack": {"schema": "pack/v1"}, "fields": ""}"#,
+        ));
+        assert_eq!(v["ok"], false);
+        assert!(
+            error(&v)["message"]
+                .as_str()
+                .unwrap()
+                .starts_with("pack: a snapshot brings"),
+            "{v}"
+        );
+
+        let Some(path) = std::env::var_os("RBB_PACK_SNAPSHOT") else {
+            return;
+        };
+        let text = std::fs::read_to_string(path).expect("the snapshot is readable");
+        // As text and as an object: the same rule set.
+        let as_text = parse(&validate(&json!({"pack": text}).to_string()));
+        assert_eq!(as_text["ok"], true, "{as_text}");
+        let doc: Json = serde_json::from_str(&text).unwrap();
+        let files = rbb_engine::snapshot_rule_files(&doc).len();
+        assert!(files > 50);
+        assert_eq!(
+            as_text["rule_set"]["rule_files"].as_u64().unwrap() as usize,
+            files
+        );
+        let e = parse(&create_engine(
+            &json!({"pack": text, "cards": {"ns": {"stock": "21GF-DEFAULT"}}}).to_string(),
+        ));
+        assert_eq!(e["ok"], true, "{e}");
+        assert_ne!(e["rules_id"], rbb_assets::RULES_ID);
+        let r = parse(&bid(
+            &json!({"engine": e["engine"], "hand": "AK52.KJ7.Q94.K83",
+                                    "dealer": "N", "auction": ""})
+            .to_string(),
+        ));
+        assert_eq!(r["call"], "1NT", "{r}");
     }
 
     #[test]
