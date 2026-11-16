@@ -132,6 +132,9 @@ struct Rules {
     set: RuleSet,
     id: String,
     files: usize,
+    /// The definitions a `skill` line may name: the snapshot's own, when
+    /// the rules came from one. `None`: the ones built into `bridge_card`.
+    known: Option<bridge_card::Skills>,
 }
 
 /// The embedded rules and their vocabulary, compiled once.
@@ -146,6 +149,7 @@ fn embedded_rules() -> &'static Result<Arc<Rules>, Vec<bidspec::Diagnostic>> {
                 set,
                 id: rbb_assets::PACK_ID.to_string(),
                 files,
+                known: bridge_card::Skills::from_snapshot(rbb_assets::PACK.1).ok(),
             })
         })
     })
@@ -272,7 +276,13 @@ fn rules_for(req: &Json, d: &mut Diags) -> Option<Arc<Rules>> {
                 let files = serde_json::from_str::<Json>(&text)
                     .map(|doc| rbb_engine::snapshot_rule_files(&doc).len())
                     .unwrap_or(0);
-                let rules = Arc::new(Rules { set, id, files });
+                let known = bridge_card::Skills::from_snapshot(&text).ok();
+                let rules = Arc::new(Rules {
+                    set,
+                    id,
+                    files,
+                    known,
+                });
                 RULE_SETS.with(|r| {
                     let mut r = r.borrow_mut();
                     r.push(rules.clone());
@@ -400,6 +410,7 @@ fn rules_for(req: &Json, d: &mut Diags) -> Option<Arc<Rules>> {
                 set,
                 id,
                 files: files.len(),
+                known: None,
             });
             RULE_SETS.with(|r| {
                 let mut r = r.borrow_mut();
@@ -467,9 +478,13 @@ fn check_rule_set(rules: &Rules, d: &mut Diags) {
     }
     // As `rbb bid check`: a module without a `kind` line, and skill paths
     // that are not standard conventions or skills (warnings).
-    if let Ok(known) = bridge_card::standard::conventions() {
+    let built_in = match &rules.known {
+        Some(_) => None,
+        None => bridge_card::standard::conventions().ok(),
+    };
+    if let Some(known) = rules.known.as_ref().or(built_in.as_ref()) {
         let fields = "fields";
-        for x in bidspec::skills::check(modules, rules.set.vocab.registry(), &known, fields) {
+        for x in bidspec::skills::check(modules, rules.set.vocab.registry(), known, fields) {
             rule_diagnostic(&x, Severity::Warning, d);
         }
     }
