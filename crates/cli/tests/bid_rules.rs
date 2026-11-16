@@ -364,7 +364,7 @@ fn rule_rejected_by_when_names_the_conjunct() {
         "--set",
         "general.style=bba",
         "--rule",
-        "stayman.bid:19",
+        "stayman.bid:18",
     ]);
     let s = &selection(&v)[0];
     assert_eq!(s["verdict"], "fails");
@@ -385,7 +385,7 @@ fn rule_rejected_by_when_names_the_conjunct() {
         "general.style=bba",
         "--no-knowledge",
         "--rule",
-        "stayman.bid:19",
+        "stayman.bid:18",
     ]);
     assert!(text.contains("DOES NOT APPLY"), "{text}");
 }
