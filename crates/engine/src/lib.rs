@@ -120,6 +120,26 @@ pub fn rules_vocabulary(dir: &Path) -> Result<Vocabulary, bridge_card::Error> {
     }
 }
 
+/// The definitions a rule module's `skill` lines may name, for the rules in
+/// `dir`: a snapshot's own (`pack.json`), a pack checkout's own
+/// (`conventions/` and `skills/`), otherwise the ones built into
+/// `bridge_card`. As [`rules_vocabulary`] chooses the card vocabulary.
+pub fn rules_definitions(dir: &Path) -> Result<bridge_card::Skills, bridge_card::Error> {
+    if dir.is_file() {
+        let name = dir.display().to_string();
+        let text = std::fs::read_to_string(dir).map_err(|e| bridge_card::Error {
+            message: e.to_string(),
+            file: Some(name),
+            line: None,
+        })?;
+        bridge_card::Skills::from_snapshot(&text)
+    } else if bridge_card::Pack::is_pack(dir) {
+        bridge_card::Skills::load_pack(dir)
+    } else {
+        bridge_card::standard::conventions()
+    }
+}
+
 /// Load the rule set in `dir`: its manifest (a language version this
 /// engine does not read refuses the load; a directory without one is read
 /// as the current language), its card vocabulary ([`rules_vocabulary`]), then every

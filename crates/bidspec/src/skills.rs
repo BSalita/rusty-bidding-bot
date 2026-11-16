@@ -103,7 +103,7 @@ pub fn map(modules: &[Module], registry: &Registry, known: &Skills) -> SkillMap 
 }
 
 /// Where the standard conventions and skills live, for messages.
-const KNOWN_SKILLS: &str = "the pack's conventions/";
+const KNOWN_SKILLS: &str = "the pack's definitions (conventions/ and skills/)";
 
 /// Warnings for `rbb bid check`: a module without a `kind` line, and
 /// skill paths that the standard list

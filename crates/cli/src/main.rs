@@ -1824,9 +1824,9 @@ fn bid(cmd: BidCommand) -> Result<()> {
             }
             // Teaching skills: every path named is a standard convention or
             // skill (the pack's definitions).
-            match bridge_card::standard::conventions() {
+            match rbb_engine::rules_definitions(&rules) {
                 Ok(known) => {
-                    let fields_file = "fields.toml (convention-card spec/)".to_string();
+                    let fields_file = "the card settings".to_string();
                     for d in
                         bidspec::skills::check(&modules, vocab.registry(), &known, &fields_file)
                     {
@@ -1938,7 +1938,7 @@ fn bid(cmd: BidCommand) -> Result<()> {
         }
         BidCommand::Skills { rules, doc, json } => {
             let vocab = vocab_from(&rules)?;
-            let known = bridge_card::standard::conventions()?;
+            let known = rbb_engine::rules_definitions(&rules)?;
             let mut files = Vec::new();
             collect_bid_files(&rules, &mut files)?;
             files.sort();
