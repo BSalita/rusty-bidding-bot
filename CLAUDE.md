@@ -288,6 +288,12 @@ local checkouts").
   rules change: `compare --rules-at main ... --json a.json` and `compare ...
   --json b.json` with one binary. **Use it instead of copying rule files
   or binaries.** (An engine change still needs two binaries.)
+- `target/release/rbb deal check PATHS` and `rbb deal run SCRIPT [--seed N]
+  [-p N] [-o FILE]`: dealer scripts (`.dlr`), read and dealt by dealer3's
+  own crates, so a script means here what it means in dealer3. `check`
+  reports a problem as `file:line`, as `bid check` does; `run` writes the
+  deals as PBN, the same deals dealer3 deals for that script and seed, for
+  `bid-pbn` to bid.
 - `target/release/rbb dd FILE.pbn...`: double-dummy table and par of every
   distinct deal in PBN files, one JSON line each (tricks by declarer N E S
   W and strain C D H S NT, `par_ns`, `par`, `par_rank`), cached with
