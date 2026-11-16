@@ -451,7 +451,7 @@ enum BidCommand {
         #[arg(long, default_value_os_t = default_rules())]
         rules: PathBuf,
         /// Instead of printing, rewrite the generated section of this
-        /// Markdown file (docs/SKILLS.md) between its markers.
+        /// Markdown file between its markers.
         #[arg(long, conflicts_with = "json")]
         doc: Option<PathBuf>,
         /// Print the module inventory as JSON instead: each module's skills,
@@ -1823,7 +1823,7 @@ fn bid(cmd: BidCommand) -> Result<()> {
                 }
             }
             // Teaching skills: every path named is a standard convention or
-            // skill (convention-card's spec/conventions/).
+            // skill (the pack's definitions).
             match bridge_card::standard::conventions() {
                 Ok(known) => {
                     let fields_file = "fields.toml (convention-card spec/)".to_string();

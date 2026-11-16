@@ -279,9 +279,11 @@ local checkouts").
   **Read that, not `grep -A6 Contract` over the PBN.**
 - **`--rules-at <git-ref>`** (`compare`, `bid-pbn`, `call`,
   `explain-auction`, `bid rules`): the rules directory (`--rules`, a
-  directory inside the current git repository) as it was at that commit, read
-  from git in memory, named and ordered as the working tree's files are, so
-  before/after runs line up; refused with a clear message for a ref that is
+  folder in a git checkout, usually the pack's: `--rules ../bridge-common-conventions`)
+  as it was at that commit, read from that repository, with the pack's
+  names as they were then, named and ordered as the working tree's files
+  are, so before/after runs line up. It needs `--rules`: the compiled-in
+  rules have no history; refused with a clear message for a ref that is
   not a commit or a rule language this binary does not read. Before/after a
   rules change: `compare --rules-at main ... --json a.json` and `compare ...
   --json b.json` with one binary. **Use it instead of copying rule files

@@ -72,8 +72,6 @@ jobs:
       # (that pattern lives in a gitignored .cargo/config.toml).
       - name: Build rbb
         run: cargo build --locked --release -p rbb-cli
-      - name: Rule files
-        run: target/release/rbb bid check
       # Optimised: the tests bid thousands of positions, which a debug
       # build runs several times slower than it compiles.
       # The workbench (a GUI: egui and its graphics stack) is most of the

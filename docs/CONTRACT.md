@@ -213,8 +213,11 @@ The commands and their options are in CLAUDE.md.
 
 Every command that loads rules (`compare`, `bid-pbn`, `call`,
 `explain-auction`, `bid rules`) takes `--rules-at GIT_REF`: the rules
-directory as it was at that commit, read from the repository, with the
-manifest's language checked as for a directory.
+directory as it was at that commit, read from the repository `--rules`
+is in, with the manifest's language checked as for a directory. For a
+pack checkout the definitions and settings come from that commit too, so
+rules are compiled against the names they were written for. It needs
+`--rules` naming a folder: the compiled-in rules have no history.
 
 #### `rbb bid-pbn --json`
 
