@@ -3,8 +3,8 @@
 `bbsa/*.bbsa` are the stock cards: embedded by `crates/assets`
 (`rbb_assets::card("SAYC")`), listed by the WASM build (`stock_cards`), named
 by `rbb ... -c`/`--ns-card` and `.test` `card` lines, and valid BBA cards.
-They are read in the convention-card vocabulary (`spec/fields.toml`,
-`spec/formats/bbsa-map.toml`). The BBA ones (`21GF-*`, `Basic-Bridge`,
+They are read with the names of the rules in use (the pack's conventions and
+settings) and convention-card's `.bbsa` map (`spec/formats/bbsa-map.toml`). The BBA ones (`21GF-*`, `Basic-Bridge`,
 `Precision*`) are copies of `Practice-Bidding-Scenarios/bbsa/`.
 
 `json/*.json` are the sources of the cards made here, in the card vocabulary:

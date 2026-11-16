@@ -286,11 +286,14 @@ fn text_form_prints_the_review_and_the_rules() {
     assert!(out.find("1NT").unwrap() < out.find("South to call").unwrap());
 }
 
-/// The line of a rule in `conventions/base/rebids.bid`, found by the text
+/// The line of a rule in `rules/base/rebids.bid`, found by the text
 /// that follows its context line, so rule edits elsewhere in the file do
 /// not move the tests' targets.
 fn rebids_line(context: &str, rule: &str) -> usize {
-    let text = std::fs::read_to_string(format!("{ROOT}/conventions/base/rebids.bid")).unwrap();
+    let pack: Value =
+        serde_json::from_str(&std::fs::read_to_string(format!("{ROOT}/pack/pack.json")).unwrap())
+            .unwrap();
+    let text = pack["files"]["rules/base/rebids.bid"].as_str().unwrap();
     let lines: Vec<&str> = text.lines().collect();
     let at = lines
         .iter()

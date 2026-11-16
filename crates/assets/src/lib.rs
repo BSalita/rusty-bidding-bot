@@ -1,15 +1,12 @@
 //! The rules and stock cards, compiled into the binary.
 //!
-//! `RULE_FILES` holds every `conventions/**/*.bid`, named and ordered as
-//! `rbb_engine::load_rules("conventions")` names and orders them, `MANIFEST`
-//! the manifest (`conventions/conventions.toml`), and
-//! `FIELDS` / `BBSA_MAP` the card vocabulary (the standard one, convention-card's
-//! `spec/` via `bridge_card::standard`, unless the rules bring their own), so
-//! `rbb_engine::compile_rules(MANIFEST, FIELDS, BBSA_MAP, RULE_FILES)` gives the same
-//! rule set as loading the directory. `CARDS` holds the stock `.bbsa` cards
-//! (`cards/bbsa`), which are read in that
-//! vocabulary. Nothing here needs a filesystem at run time: this is what
-//! the release `rbb` and the WASM build bid with.
+//! `PACK` is a convention pack's published snapshot (`pack/pack.json`, a copy
+//! of bridge-common-conventions' `pack.json` without its test and notes
+//! files): `rbb_engine::compile_snapshot(PACK.1, PACK.0)` gives the rule set
+//! and the card vocabulary. `PACK_RULES_NUMBER` and `PACK_ID` say which rules
+//! they are. `CARDS` holds the stock `.bbsa` cards (`cards/bbsa`). Nothing
+//! here needs a filesystem at run time: this is what the release `rbb` and
+//! the WASM build bid with when they are given no other rules.
 
 include!(concat!(env!("OUT_DIR"), "/assets.rs"));
 
@@ -31,17 +28,12 @@ mod tests {
 
     #[test]
     fn rules_and_cards_are_embedded() {
-        assert!(RULE_FILES.len() > 10);
-        assert!(RULE_FILES
-            .iter()
-            .all(|(n, _)| n.starts_with("conventions/")));
-        assert_eq!(MANIFEST.unwrap().0, "conventions/conventions.toml");
-        assert_eq!(FIELDS.0, "convention-card/spec/fields.toml");
-        assert_eq!(BBSA_MAP.0, "convention-card/spec/formats/bbsa-map.toml");
-        assert!(FIELDS.1.contains("[notrump"));
+        assert_eq!(PACK.0, "pack/pack.json");
+        assert!(PACK.1.contains("\"schema\": \"pack/v1\""));
+        assert!(PACK_RULES_NUMBER > 0);
+        assert!(PACK_ID.starts_with(&format!("{PACK_RULES_NUMBER}-")));
         assert!(card("21GF-DEFAULT").is_some());
         assert!(card_json("Natural").is_some());
         assert!(card_json("21GF-DEFAULT").is_none());
-        assert_eq!(RULES_ID.len(), 16);
     }
 }
