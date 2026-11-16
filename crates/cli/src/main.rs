@@ -12,6 +12,7 @@ mod rules_at;
 use bid_rules::{bid_rules, BidRulesArgs};
 mod coverage;
 mod dd;
+mod deal;
 
 #[derive(Parser)]
 #[command(name = "rbb", about = "rusty-bidding-bot command-line tools", version = version())]
@@ -30,6 +31,9 @@ enum Command {
     /// Rule file (.bid) tools.
     #[command(subcommand)]
     Bid(BidCommand),
+    /// Dealer script (.dlr) tools.
+    #[command(subcommand)]
+    Deal(DealCommand),
     /// Compare the engine with BBA's auctions in Practice-Bidding-Scenarios.
     Compare {
         /// Scenario names, or patterns with `*` and `?` (e.g. 1N Stayman
@@ -624,12 +628,29 @@ fn main() -> ExitCode {
         .unwrap_or(ExitCode::FAILURE)
 }
 
+#[derive(Subcommand)]
+enum DealCommand {
+    /// Parse dealer scripts (directories are searched recursively for
+    /// .dlr files) with dealer3's parser, the one that deals from them.
+    /// Each problem is reported as `file:line: error: ...`.
+    Check {
+        /// Files or directories.
+        #[arg(default_value = ".")]
+        paths: Vec<PathBuf>,
+        /// A script parameter, `N=text` (repeatable): what `$N` stands for
+        /// in a script that takes parameters.
+        #[arg(long)]
+        param: Vec<String>,
+    },
+}
+
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 fn run(cli: Cli) -> Result<()> {
     match cli.command {
         Command::Card(cmd) => card(cmd),
         Command::Bid(cmd) => bid(cmd),
+        Command::Deal(DealCommand::Check { paths, param }) => deal::check(&paths, &param),
         Command::Compare {
             scenarios,
             pbs,
