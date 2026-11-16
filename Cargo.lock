@@ -917,7 +917,7 @@ checksum = "f27ae1dd37df86211c42e150270f82743308803d90a6f6e6651cd730d5e1732f"
 [[package]]
 name = "dealer-core"
 version = "1.1.0"
-source = "git+https://github.com/bridge-craftwork/dealer3?rev=045cbf03330787044b1240b9a9177d0d28750ca5#045cbf03330787044b1240b9a9177d0d28750ca5"
+source = "git+https://github.com/bridge-craftwork/dealer3?rev=bdc7b1033bbac56fd4de2d54c299d003a0db371b#bdc7b1033bbac56fd4de2d54c299d003a0db371b"
 dependencies = [
  "bridge-types",
 ]
@@ -925,7 +925,7 @@ dependencies = [
 [[package]]
 name = "dealer-dds"
 version = "1.1.0"
-source = "git+https://github.com/bridge-craftwork/dealer3?rev=045cbf03330787044b1240b9a9177d0d28750ca5#045cbf03330787044b1240b9a9177d0d28750ca5"
+source = "git+https://github.com/bridge-craftwork/dealer3?rev=bdc7b1033bbac56fd4de2d54c299d003a0db371b#bdc7b1033bbac56fd4de2d54c299d003a0db371b"
 dependencies = [
  "bridge-solver",
  "bridge-types",
@@ -935,7 +935,7 @@ dependencies = [
 [[package]]
 name = "dealer-eval"
 version = "1.1.0"
-source = "git+https://github.com/bridge-craftwork/dealer3?rev=045cbf03330787044b1240b9a9177d0d28750ca5#045cbf03330787044b1240b9a9177d0d28750ca5"
+source = "git+https://github.com/bridge-craftwork/dealer3?rev=bdc7b1033bbac56fd4de2d54c299d003a0db371b#bdc7b1033bbac56fd4de2d54c299d003a0db371b"
 dependencies = [
  "dealer-core",
  "dealer-dds",
@@ -946,7 +946,7 @@ dependencies = [
 [[package]]
 name = "dealer-level"
 version = "1.1.0"
-source = "git+https://github.com/bridge-craftwork/dealer3?rev=045cbf03330787044b1240b9a9177d0d28750ca5#045cbf03330787044b1240b9a9177d0d28750ca5"
+source = "git+https://github.com/bridge-craftwork/dealer3?rev=bdc7b1033bbac56fd4de2d54c299d003a0db371b#bdc7b1033bbac56fd4de2d54c299d003a0db371b"
 dependencies = [
  "dealer-parser",
 ]
@@ -954,7 +954,7 @@ dependencies = [
 [[package]]
 name = "dealer-parser"
 version = "1.1.0"
-source = "git+https://github.com/bridge-craftwork/dealer3?rev=045cbf03330787044b1240b9a9177d0d28750ca5#045cbf03330787044b1240b9a9177d0d28750ca5"
+source = "git+https://github.com/bridge-craftwork/dealer3?rev=bdc7b1033bbac56fd4de2d54c299d003a0db371b#bdc7b1033bbac56fd4de2d54c299d003a0db371b"
 dependencies = [
  "dealer-core",
  "pest",
@@ -965,7 +965,7 @@ dependencies = [
 [[package]]
 name = "dealer-pbn"
 version = "1.1.0"
-source = "git+https://github.com/bridge-craftwork/dealer3?rev=045cbf03330787044b1240b9a9177d0d28750ca5#045cbf03330787044b1240b9a9177d0d28750ca5"
+source = "git+https://github.com/bridge-craftwork/dealer3?rev=bdc7b1033bbac56fd4de2d54c299d003a0db371b#bdc7b1033bbac56fd4de2d54c299d003a0db371b"
 dependencies = [
  "bridge-encodings",
  "bridge-types",
@@ -976,7 +976,7 @@ dependencies = [
 [[package]]
 name = "dealer-run"
 version = "1.1.0"
-source = "git+https://github.com/bridge-craftwork/dealer3?rev=045cbf03330787044b1240b9a9177d0d28750ca5#045cbf03330787044b1240b9a9177d0d28750ca5"
+source = "git+https://github.com/bridge-craftwork/dealer3?rev=bdc7b1033bbac56fd4de2d54c299d003a0db371b#bdc7b1033bbac56fd4de2d54c299d003a0db371b"
 dependencies = [
  "bridge-encodings",
  "bridge-types",
