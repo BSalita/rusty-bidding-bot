@@ -20,7 +20,7 @@ struct Args {
     #[arg(long, default_value = "../Practice-Bidding-Scenarios")]
     pbs: PathBuf,
     /// Directory of .bid modules (watched for changes).
-    #[arg(long, default_value = "conventions")]
+    #[arg(long, default_value = "pack/pack.json")]
     rules: PathBuf,
     /// Where `.test` files look up card names.
     #[arg(long, default_value = "cards/bbsa")]

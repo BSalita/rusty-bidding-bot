@@ -48,7 +48,7 @@ Pages at `web/dist`; `npx wrangler pages dev` serves it locally with the real
 | `status.html`, `status/` | the status page (below): `status.js` draws, `legend.js` the status vocabulary, `status.css`, and `status.json`, its data (committed) |
 | `explorer.html`, `explorer/` | the auction explorer (below): `explorer.js`, `explorer.css` |
 | `validate.html`, `validate/` | the rule checker (below): `validate.js`, `validate.css` |
-| `rules/` (built) | the rule set as text: every `.bid` file, `conventions.toml` and `index.json` (`{"files": [...]}`), copied from `conventions/` by build.sh |
+| `rules/` (built) | `pack.json`: the convention pack's snapshot the engine is built with (the rule files as text, and the names they are checked against), copied from `pack/pack.json` by build.sh |
 | `_headers`, `404.html` | Pages headers; the real 404 |
 | `scripts/` | `emit-reference.mjs`, `check-reference.mjs` (drift), `test.mjs` |
 
@@ -217,7 +217,7 @@ that reads oddly shows up first: 3NT over Jacoby 2NT "unbalanced" on
 installing `rbb`: open files or a folder, pick one of ours as an example,
 or type; the engine's `validate` checks them as `rbb bid check` does
 (grammar, terms, card paths, skills, `kind`), on their own or added to
-Rusty's rule set from `rules/` (a file with the same path replaces ours,
+Rusty's rule set from `rules/pack.json` (a file with the same path replaces ours,
 so `needs`, `define`s and the named patterns resolve). With our rule set,
 only the diagnostics about the files on the page are listed, the rest
 counted. A diagnostic with a line jumps to it. Nothing is uploaded.

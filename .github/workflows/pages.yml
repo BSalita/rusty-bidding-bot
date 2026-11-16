@@ -11,7 +11,7 @@ on:
       # The site embeds the engine and the rules, so a change to either is a
       # change to the site: globs, so a new crate cannot be forgotten.
       - 'crates/**'
-      - 'conventions/**'
+      - 'pack/**'
       - 'web/**'
       - 'Cargo.toml'
       - 'Cargo.lock'

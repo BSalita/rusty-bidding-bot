@@ -1,20 +1,14 @@
 name: CI
 
-# Two kinds of change, two kinds of check (Rick, 2026-09-30: rules and
-# engine will be separate repositories; a rules-only change should not
-# build the engine):
+# One optimised build, then the whole test suite, the WASM package and the
+# web site, when the engine changes (crates/, Cargo.*, cards/, pack/, web/,
+# scripts/, the workflows). The rules are bridge-common-conventions': they
+# are checked and tested there, with this engine. pack/ is the copy
+# compiled in here.
 #
-# - rules only (conventions/, docs/SKILLS.md): the rbb binary built on
-#   main checks and tests the rules - every .test file, since a change to
-#   one module can change another's calls - in about a minute;
-# - engine (crates/, Cargo.*, cards/, web/, scripts/, the workflows): one
-#   optimised build, then the whole test suite, the WASM package and the
-#   web site.
-#
-# Pushes to main always run the engine checks, and leave the rbb binary
-# (artifact rbb-linux) for rules-only pull requests to use. Linux only:
-# the full Linux / macOS / Windows matrix runs before a release
-# (release.yml).
+# Pushes to main always run, and leave the rbb binary (artifact
+# rbb-linux). Linux only: the full Linux / macOS / Windows matrix runs
+# before a release (release.yml).
 
 on:
   push:
@@ -38,7 +32,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       engine: ${{ steps.filter.outputs.engine }}
-      rules: ${{ steps.filter.outputs.rules }}
       workbench: ${{ steps.filter.outputs.workbench }}
       web: ${{ steps.filter.outputs.web }}
     steps:
@@ -52,12 +45,10 @@ jobs:
               - 'Cargo.toml'
               - 'Cargo.lock'
               - 'cards/**'
+              - 'pack/**'
               - 'web/**'
               - 'scripts/**'
               - '.github/**'
-            rules:
-              - 'conventions/**'
-              - 'docs/SKILLS.md'
             workbench:
               - 'crates/workbench/**'
               - 'Cargo.lock'
@@ -65,38 +56,6 @@ jobs:
               - 'web/**'
               - 'crates/wasm/**'
               - '.github/workflows/**'
-
-  rules:
-    name: Rules (rbb from main)
-    needs: changes
-    if: github.event_name == 'pull_request' && needs.changes.outputs.rules == 'true' && needs.changes.outputs.engine != 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      # The binary from the latest successful run on main; built here if
-      # there is none (a first run, or the artifact expired).
-      - name: rbb from main
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          id=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --branch main --event push \
-                 --status success --limit 1 --json databaseId --jq '.[0].databaseId')
-          if [ -n "$id" ] && gh run download "$id" --repo "$GITHUB_REPOSITORY" --name rbb-linux --dir bin; then
-            chmod +x bin/rbb
-          else
-            echo "no rbb artifact on main: building one"
-            cargo build --locked --release -p rbb-cli
-            mkdir -p bin && cp target/release/rbb bin/rbb
-          fi
-          bin/rbb --version
-      - name: Rule files
-        run: bin/rbb bid check
-      - name: Every .test file
-        run: bin/rbb bid test conventions cards
-      - name: docs/SKILLS.md is current
-        run: |
-          bin/rbb bid skills --doc docs/SKILLS.md
-          git diff --exit-code docs/SKILLS.md
 
   engine:
     name: Engine (build and tests)
@@ -113,8 +72,6 @@ jobs:
       # (that pattern lives in a gitignored .cargo/config.toml).
       - name: Build rbb
         run: cargo build --locked --release -p rbb-cli
-      - name: Rule files
-        run: target/release/rbb bid check
       # Optimised: the tests bid thousands of positions, which a debug
       # build runs several times slower than it compiles.
       # The workbench (a GUI: egui and its graphics stack) is most of the

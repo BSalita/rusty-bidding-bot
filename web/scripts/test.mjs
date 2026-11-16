@@ -145,7 +145,7 @@ await test('a Bridge-Classroom export, as its "Export content" writes it', async
   const out = await new Session(rbb, { fetchImpl }).run({ deal: DEAL, dealer: 'N' }, { ns: { json: exported } })
   assert.equal(out.ok, true, JSON.stringify(out.diagnostics))
   assert.equal(out.cards.ns, 'Pat and Sam')
-  assert.ok(out.coverage.ns.read.includes('notrump.stayman.play'))
+  assert.ok(out.coverage.ns.read.includes('bidding_conventions/stayman'))
   // Written back out in the same wrapper, which reads back as the same card.
   const r = JSON.parse(rbb.exportCard(JSON.stringify({ card: { json: exported }, exported_at: 'now' })))
   assert.equal(r.ok, true, JSON.stringify(r.diagnostics))
@@ -199,7 +199,7 @@ await test('the WASM takes a rule set and its card vocabulary at run time', asyn
   assert.equal(J('bid', { engine: high.engine, hand: 'AK52.KJ7.Q94.K83', dealer: 'N' }).call, 'Pass')
   // The embedded rules still bid as before.
   const std = J('bid', { cards: { ns: '21GF-DEFAULT' }, hand: 'AK52.KJ7.Q94.K83', dealer: 'N' })
-  assert.equal(std.rule.file, 'conventions/notrump/one-nt.bid')
+  assert.equal(std.rule.file, 'rules/notrump/one-nt.bid')
 
   // Compile errors and unknown terms come back with file and line.
   const bad = J('validate', ruleSet('  1N  "Demo"  shows hcpx>=15'))

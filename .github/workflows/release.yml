@@ -80,7 +80,7 @@ jobs:
         with:
           key: ${{ matrix.target }}
 
-      # The rules (conventions/*.bid) and stock cards are compiled in by
+      # The rules (pack/pack.json) and stock cards are compiled in by
       # rbb-assets: the binary needs no files beside it.
       - name: Build rbb
         run: cargo build --locked --release -p rbb-cli --bin rbb --target ${{ matrix.target }}

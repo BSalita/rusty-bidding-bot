@@ -62,6 +62,8 @@ fn repo(name: &str) -> PathBuf {
 fn rbb(dir: &Path, args: &[&str]) -> (bool, String, String) {
     let out = Command::new(env!("CARGO_BIN_EXE_rbb"))
         .args(args)
+        // The scratch repository keeps its rules in `conventions/`.
+        .args(["--rules", "conventions"])
         .current_dir(dir)
         .output()
         .unwrap();

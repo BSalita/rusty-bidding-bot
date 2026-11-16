@@ -1,6 +1,7 @@
 // The rule checker: `.bid` files opened or typed here, checked by the
 // engine's `validate` (the same checks as `rbb bid check`), on their own or
-// added to Rusty's rule set (rules/index.json, published by build.sh).
+// added to Rusty's rule set (rules/pack.json: the convention pack's
+// snapshot the engine is built with, published by build.sh).
 // Nothing is sent anywhere; the files live in this page.
 
 import init, * as rbb from '../pkg/rbb_wasm.js'
@@ -14,13 +15,13 @@ const info = JSON.parse(rbb.info())
 $('language').textContent =
   `Engine ${info.version}, rule language ${info.language}. Every term a condition may use: rbb bid terms (docs/CONTRACT.md).`
 
-// Rusty's rule set, as text: { files: [path...], manifest: "conventions.toml" }.
+// Rusty's rule set: { pack: the snapshot without its files, files: { path: text } }.
+// The pack brings the names a rule may read (conventions, treatments, settings).
 let ours = null
 async function oursRules() {
   if (ours) return ours
-  const index = await (await fetch('rules/index.json')).json()
-  const texts = await Promise.all(index.files.map((p) => fetch('rules/' + p).then((r) => r.text())))
-  ours = { files: Object.fromEntries(index.files.map((p, i) => [p, texts[i]])), manifest: await fetch('rules/conventions.toml').then((r) => r.text()) }
+  const { files, ...pack } = await (await fetch('rules/pack.json')).json()
+  ours = { pack, files: Object.fromEntries(Object.entries(files).filter(([p]) => p.endsWith('.bid'))) }
   return ours
 }
 
@@ -160,7 +161,6 @@ function schedule() {
 async function check() {
   const mode = document.querySelector('input[name=mode]:checked').value
   const mine = Object.fromEntries([...files].filter(([n, t]) => n.endsWith('.bid') && t.trim()))
-  const manifest = [...files].find(([n]) => n.endsWith('conventions.toml'))?.[1]
   if (!Object.keys(mine).length) {
     $('summary').innerHTML = '<p class="hint">Open, choose or type a <code>.bid</code> file.</p>'
     $('diagnostics').innerHTML = ''
@@ -169,19 +169,17 @@ async function check() {
     renderGutter()
     return
   }
-  const req = {}
+  // Either way the files are checked against the pack's names.
+  const base = await oursRules()
+  let rules = mine
   if (mode === 'with') {
-    const base = await oursRules()
     // A file of yours replaces ours with the same path, or with the same
     // module name wherever you keep it (flannery.bid for openings/flannery.bid).
     const names = new Set(Object.values(mine).map(moduleName).filter(Boolean))
     const kept = Object.fromEntries(Object.entries(base.files).filter(([, text]) => !names.has(moduleName(text))))
-    req.rules = { ...kept, ...mine }
-    req.manifest = manifest ?? base.manifest
-  } else {
-    req.rules = mine
-    if (manifest) req.manifest = manifest
+    rules = { ...kept, ...mine }
   }
+  const req = { pack: { ...base.pack, files: rules } }
   let res
   try {
     res = JSON.parse(rbb.validate(JSON.stringify(req)))

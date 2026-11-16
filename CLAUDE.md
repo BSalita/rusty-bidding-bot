@@ -10,8 +10,12 @@ the proposed top-down judgment layer (placement, competition, slam entry): docs/
   only as a black box via `bba-cli` outputs and `.bbsa` imports. See
   CONTRIBUTING.md.
 - **Convention layer is engine-independent.** `bridge-card` (now in the
-  convention-card repo), `crates/bidspec`, and `conventions/` must never
-  depend on `rbb-engine` or `rbb-cli`.
+  convention-card repo), `crates/bidspec`, and the rule files (now in
+  bridge-common-conventions) must never depend on `rbb-engine` or `rbb-cli`.
+- **The rules are not edited here.** They live in bridge-common-conventions
+  (sibling checkout `../bridge-common-conventions`). `pack/pack.json` is a
+  copy of its published snapshot, compiled in; it is replaced whole by
+  `python3 scripts/sync_pack.py` at a release, never edited by hand.
 
 ## Pace (Rick, 2026-10-05)
 
@@ -94,29 +98,31 @@ local checkouts").
   card the rules read — settings honoured, settings ignored, `.bbsa` keys with
   no field (`-v` lists them). `compare --min-coverage 50` restricts the
   comparison to scenarios whose cards we cover that well.
-- `./dev-build.sh run -q -p rbb-cli -- bid check`: parse and check every `.bid` file in
-  `conventions/`; `bid compile <file>` prints the JSON IR.
+- `--rules` on every command defaults to the compiled-in snapshot. It also
+  takes a snapshot file (`pack.json`) or a checkout of the pack
+  (`--rules ../bridge-common-conventions`).
+- `./dev-build.sh run -q -p rbb-cli -- bid check <paths> --rules <pack checkout>`:
+  parse and check the `.bid` files under the paths (default `.`), so it
+  needs a checkout of the pack; `bid compile <file>` prints the JSON IR.
 - docs/CONTRACT.md is the contract between engine and conventions (they
   will split into two repos): what the engine promises, what a good
-  convention file does. `conventions/conventions.toml` is the rule set's
-  manifest; its `language` must be one the engine reads
+  convention file does. The pack's `bridge-pack.toml` names its rule
+  language (`rule_language_version`); it must be one the engine reads
   (`rbb_engine::LANGUAGE_VERSION`, shown by `rbb --version`), or loading
   refuses. A change that alters how existing rule files load or read
   needs a language version bump. `rbb bid terms` prints every term a
   condition may use; the meanings live in the term tables in
   `crates/engine/src/eval.rs`, and after changing them run
   `rbb bid terms --doc docs/CONTRACT.md` (a test checks the doc).
-- Teaching skills (docs/SKILLS.md): each module names the Bridge-Classroom
-  skills it implements (`skill bidding_conventions/stayman` header lines),
-  each convention's card field its skill (`skill = ...` in fields.toml);
-  the card field is the canonical convention ID. Known paths: the standard
-  conventions and skills in convention-card's `spec/conventions/` (a new one
-  is a pull request there). After
-  changing any, run `rbb bid skills --doc docs/SKILLS.md` (a test checks
-  the doc).
-- `./dev-build.sh run -q -p rbb-cli -- bid test [paths]`: run the `<module>.test` cases
-  (`seat hand | auction | expect | why`) next to the modules; `-v` lists passes.
-  `./dev-build.sh test` runs them too. Put call expectations there, not in Rust tests.
+- Teaching skills: each module names the conventions and skills it
+  implements (`skill bidding_conventions/stayman` header lines). Known IDs
+  are the pack's definitions (a new one is a pull request there). `rbb bid
+  skills` prints the map; docs/SKILLS.md, which held it, is gone.
+- `./dev-build.sh run -q -p rbb-cli -- bid test [paths] --rules <pack checkout>`: run the
+  `<module>.test` cases (`seat hand | auction | expect | why`) next to the
+  modules; `-v` lists passes. The `.test` files are in the pack and run in
+  its CI, not in `./dev-build.sh test` here. Put call expectations there,
+  not in Rust tests.
 - **Par decides, BBA teaches**: where agreement with BBA and distance from
   double-dummy par disagree, par wins, and the trade goes in the notes and
   the commit message (docs/DESIGN.md).
@@ -272,13 +278,15 @@ local checkouts").
   `--par` the contract's tricks and score and par; docs/CONTRACT.md).
   **Read that, not `grep -A6 Contract` over the PBN.**
 - **`--rules-at <git-ref>`** (`compare`, `bid-pbn`, `call`,
-  `explain-auction`, `bid rules`): the rules directory (`--rules`, default
-  `conventions`) as it was at that commit of the current repository, read
-  from git in memory, named and ordered as the working tree's files are, so
-  before/after runs line up; refused with a clear message for a ref that is
+  `explain-auction`, `bid rules`): the rules directory (`--rules`, a
+  folder in a git checkout, usually the pack's: `--rules ../bridge-common-conventions`)
+  as it was at that commit, read from that repository, with the pack's
+  names as they were then, named and ordered as the working tree's files
+  are, so before/after runs line up. It needs `--rules`: the compiled-in
+  rules have no history; refused with a clear message for a ref that is
   not a commit or a rule language this binary does not read. Before/after a
   rules change: `compare --rules-at main ... --json a.json` and `compare ...
-  --json b.json` with one binary. **Use it instead of copying `conventions/`
+  --json b.json` with one binary. **Use it instead of copying rule files
   or binaries.** (An engine change still needs two binaries.)
 - `target/release/rbb dd FILE.pbn...`: double-dummy table and par of every
   distinct deal in PBN files, one JSON line each (tricks by declarer N E S
@@ -392,13 +400,15 @@ commands instead of running them).
 
 ## Card fields
 
-The card vocabulary is the standard one in the [convention-card](https://github.com/bridge-craftwork/convention-card) repo
-(`spec/fields.toml`, `spec/formats/bbsa-map.toml`, `spec/conventions/`),
-which the `bridge-card` crate carries at the tag `Cargo.toml` pins
-(`bridge_card::standard`). Add or change a card field, a `.bbsa` mapping or a
-convention there, by pull request; then cut a tag there and move the pin here.
-A conventions directory may still bring its own `card/fields.toml` and
-`card/bbsa-map.toml` (`rbb_engine::rules_vocabulary`), and a card is always
-read in its rule set's vocabulary (`rbb_engine::RuleSet`). Do not guess the
+The card names (conventions, treatments, settings) come from the rules in
+use: the pack's snapshot, compiled in or given by `--rules`
+(`rbb_engine::rules_vocabulary`). Add or change a convention or a setting in
+[bridge-common-conventions](https://github.com/bridge-craftwork/bridge-common-conventions), by pull request. The
+`.bbsa` map is still convention-card's (`spec/formats/bbsa-map.toml`), which
+the `bridge-card` crate carries at the revision `Cargo.toml` pins
+(`bridge_card::standard`); a mapping changes there, then the pin moves here.
+A plain rules directory may still bring its own `card/fields.toml` and
+`card/bbsa-map.toml`, and a card is always read in its rule set's vocabulary
+(`rbb_engine::RuleSet`). Do not guess the
 meaning of an unmapped `.bbsa` key: leave it in passthrough and ask. The stock
 `.bbsa` cards are in `cards/bbsa/`.
