@@ -99,17 +99,17 @@ and commit the re-resolved `Cargo.lock` (`./dev-build.sh --ci update -p
 
 ## Releases (GitHub Actions)
 
-- `.github/workflows/ci.yml`, Linux only. A pull request that changes only
-  rules (`conventions/`, `docs/SKILLS.md`) is checked with the `rbb` built
-  on main: `bid check`, every `.test` file, and docs/SKILLS.md, in about a
-  minute, with no engine build. One that changes the engine (`crates/`,
-  `Cargo.*`, `cards/`, `web/`, `scripts/`, the workflows) gets an optimised
-  build, `bid check`, `cargo test --workspace --release` (the workbench's
-  tests only when it changes) and the WASM package (artifact
-  `rbb-wasm-pkg`); the web site job only when `web/` or `crates/wasm/`
-  changes. Pushes to main run the engine checks (the
-  workbench's tests too only when it changed) and leave `rbb` (artifact `rbb-linux`) for the rules-only runs. A
-  newer push to the same pull request cancels the older run.
+- `.github/workflows/ci.yml`, Linux only. The rules are
+  bridge-common-conventions': they are checked and their `.test` files run
+  in that repo's CI, with this engine. Here, a pull request that changes
+  the engine (`crates/`, `Cargo.*`, `cards/`, `pack/`, `web/`, `scripts/`,
+  the workflows) gets an optimised build, `cargo test --workspace
+  --release` (the workbench's tests only when it changes) and the WASM
+  package (artifact `rbb-wasm-pkg`); the web site job only when `web/`,
+  `crates/wasm/` or `pack/` changes. Pushes to main run the same checks
+  (the workbench's tests too only when it changed) and leave `rbb`
+  (artifact `rbb-linux`). A newer push to the same pull request cancels
+  the older run.
 - `.github/workflows/release.yml`: on a tag `v*` (or run by hand), first
   `bid check` and `cargo test --workspace --release` on Linux, macOS and
   Windows; then
@@ -119,7 +119,14 @@ and commit the re-resolved `Cargo.lock` (`./dev-build.sh --ci update -p
   macOS binaries, builds the WASM package, and attaches
   `rbb-<os>-<arch>.tar.gz` / `.zip` and `rbb-wasm.tar.gz` to the release.
 
-To release: `git tag v0.1.0 && git push origin v0.1.0`.
+To release:
+
+1. Refresh the compiled-in snapshot: `python3 scripts/sync_pack.py` (the
+   pack's `published` branch; or give it a directory holding `pack.json`
+   and `manifest.json`). Commit `pack/pack.json`; the tests read it. It is
+   the rules `rbb` bids with when given no `--rules`, and the WASM build's
+   when a host hands it no `pack`.
+2. `git tag v0.1.0 && git push origin v0.1.0`.
 
 ### macOS signing and notarization
 

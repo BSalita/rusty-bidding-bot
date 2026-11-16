@@ -1,10 +1,14 @@
 # The contract between the engine and the conventions
 
 The engine (`rbb-engine`, `bidspec`, the `rbb` tools, the workbench, the
-WASM build) and the conventions (`conventions/`: the `.bid` rules with
-their `.test` and `.notes.md` files, and the probe specs
-in `probes/`) are meant to live in two repositories, so that others can
-write convention scripts against a stable engine. This document is what
+WASM build) and the conventions (the `.bid` rules with their `.test` and
+`.notes.md` files) live in two repositories, so that others can write
+convention scripts against a stable engine. The rules are in
+[bridge-common-conventions](https://github.com/bridge-craftwork/bridge-common-conventions), a convention pack,
+whose own `docs/CONTRACT.md` says how a pack is laid out and published;
+this repository compiles in a copy of its published snapshot
+(`pack/pack.json`, refreshed by `scripts/sync_pack.py` at a release). The
+probe specs stay here, in `probes/`. This document is what
 each side may rely on. The first half is what the engine promises; the
 second is what a good convention file does.
 
@@ -13,12 +17,15 @@ second is what a good convention file does.
 ### The language, and its version
 
 The grammar and the model are in [LANGUAGE.md](LANGUAGE.md). This engine
-reads **rule language 1**: `rbb --version` prints it
-(`rbb 0.15.3 (rule language 1)`), and so does the last line of
-`rbb bid check`. In the code it is `rbb_engine::LANGUAGE_VERSION`.
+reads **rule language 2** and still reads 1: `rbb --version` prints it
+(`rbb 0.15.3 (rule language 2)`), and so does the last line of
+`rbb bid check`. In the code it is `rbb_engine::LANGUAGE_VERSION` (the
+oldest still read is `OLDEST_LANGUAGE_VERSION`).
 
-A rules directory says which language it is written in with a manifest at
-its root, `conventions.toml`:
+A convention pack says which language it is written in with
+`rule_language_version` in its `bridge-pack.toml`; its snapshot carries
+that file. A plain rules directory says it with a manifest at its root,
+`conventions.toml`:
 
 ```toml
 name = "rusty-bidding-bot"
@@ -33,16 +40,15 @@ engine = "0.5.0"      # optional: the engine it was developed against (informati
   `name` or `language`, refuses the load too.
 - **A directory without a manifest loads as the current language.**
   `rbb bid check` warns about it. This keeps a subdirectory
-  (`rbb bid check conventions/notrump`) and quick experiments working;
+  (`rbb bid check rules/notrump`) and quick experiments working;
   a rule set meant for others should carry one.
 - Unknown manifest keys are reported by `rbb bid check` as warnings and
   otherwise ignored.
 
 `bidspec::manifest` reads the file (the convention layer may parse it);
 `rbb_engine::read_manifest` / `check_manifest` enforce the version, and
-`rbb_engine::load_modules` calls them. The rules built into the binary
-(`rbb-assets`) come from the same tree and build, and are checked by the
-tests that load `conventions/` from disk.
+`rbb_engine::load_rules` and `compile_snapshot` call them. The rules built
+into the binary (`rbb-assets`) are `pack/pack.json`, which the tests read.
 
 ### The term vocabulary
 
@@ -54,20 +60,27 @@ accepts.
 
 ### Loading
 
-A rules directory holds:
+`--rules` takes any of three, and with none `rbb` uses the snapshot
+compiled into it:
+
+- **A pack's published snapshot** (`pack.json`, one file): its rule files,
+  rule language and names together. The WASM API takes the same as `pack`.
+- **A checkout of a pack** (a directory with `bridge-pack.toml`): the
+  `.bid` files under it, with the names its definitions and settings give.
+- **A plain rules directory**:
 
 | Path | |
 |---|---|
 | `conventions.toml` | the manifest: name, rule language version |
-| `card/fields.toml`, `card/bbsa-map.toml` | optional: the rules' own card vocabulary. Without them the rules use the standard one, convention-card's `spec/` at the tag `Cargo.toml` pins |
+| `card/fields.toml`, `card/bbsa-map.toml` | the rules' own card vocabulary |
 | `**/*.bid` | the rules (with their `.test` and `.notes.md` files) |
 
-- **Each rules directory has a card vocabulary**: its own `card/fields.toml`
-  and `card/bbsa-map.toml` when it brings them, otherwise the standard one
-  (convention-card's `spec/`, carried by the `bridge-card` crate; the
-  teaching skills are its `spec/conventions/`). The engine uses the one for
-  the directory it is given (`--rules DIR`; the copy embedded with the
-  rules in the release `rbb` and the WASM), checks the rules against it,
+- **Each rule set has a card vocabulary**: a pack's conventions, treatments
+  and settings (with card schema 2's paths as aliases) and convention-card's
+  `.bbsa` map, which the `bridge-card` crate carries; or a plain
+  directory's own `card/fields.toml` and `card/bbsa-map.toml`. The engine
+  uses the one for the rules it is given (`--rules`; the copy compiled
+  into the release `rbb` and the WASM), checks the rules against it,
   and reads every card (`.bbsa`, card JSON, `--set path=value`) in it, so
   a field's default, aliases and `.bbsa` mapping are the ones the rules
   were written for. A rule set with its own fields needs no engine change.
@@ -182,10 +195,10 @@ descriptiveness sample is fixed (seeded), and ties end in file order.
 
 | Command | What it does |
 |---|---|
-| `rbb bid check [DIR\|FILE...] [--rules DIR]` | parse and check every rule file against the card vocabulary of `--rules`; reports the manifest and the language read |
-| `rbb bid test [PATHS] [--rules DIR] [-v]` | run the `.test` cases next to the modules |
+| `rbb bid check [DIR\|FILE...] [--rules DIR]` | parse and check every rule file against the card vocabulary of `--rules`; reports the manifest and the language read. The paths default to `.`, so it runs in a folder of rule files: in a checkout of the pack, `rbb bid check --rules .` |
+| `rbb bid test [PATHS] [--rules DIR] [-v]` | run the `.test` cases next to the modules (again a folder: a checkout of the pack, whose CI runs them) |
 | `rbb bid terms` | print the term vocabulary (this document's generated section) |
-| `rbb bid skills [--rules DIR] [--doc F]` | the teaching-skill map: each skill, the card fields and the modules that name it, and the gaps (docs/SKILLS.md) |
+| `rbb bid skills [--rules DIR] [--doc F]` | the teaching-skill map: each skill, the card fields and the modules that name it, and the gaps |
 | `rbb bid reference [--rules DIR]` | every module and what each call means after each auction |
 | `rbb bid compile FILE [--rules DIR]` | a file's compiled JSON IR |
 | `rbb bid rules -a "1C P 1D 1H" [-d N] [-c CARD] [--set path=value] [--rules DIR] [--call X] [--rule SPEC] [--all] [--json]` | the rules that can make the next call, before the hand is known, in the engine's ranking; with `--all` every rule that failed and why; with `--rule` the verdict on chosen rules |
@@ -311,7 +324,7 @@ header line other than `card`, `needs` and `param`), so it came without a
 new language version, and this repository's manifest names `engine =
 "0.2.0"`. A skill path is not checked against Bridge-Classroom when the
 rules load; `rbb bid check` warns about one that is not a standard
-convention or skill (convention-card's `spec/conventions/`). The same goes for the `skill` attribute of a card field.
+convention or skill (the pack's definitions). The same goes for the `skill` attribute of a card field.
 
 The `kind` header line (LANGUAGE.md §3, engine 0.13.0) is another:
 documentation of what a module is (convention, defence, system or
@@ -343,8 +356,8 @@ change. Such changes are measured on the corpus like a rule change.
 
 ## Part 2: good behaviour for convention files
 
-These are the habits the rule set in this repository follows
-(CLAUDE.md is the working detail).
+These are the habits the rule set in bridge-common-conventions follows
+(its CLAUDE.md and this repository's are the working detail).
 
 - **Every module has a `.test` file** next to it, with a case for each
   rule a hand can reach: `seat hand | auction | expect | why`, under
@@ -389,12 +402,11 @@ These are the habits the rule set in this repository follows
 - **Name the teaching skills.** A module lists the skills it implements
   with `skill` lines, and a field the skill its convention is taught under
   with its `skill` attribute (Bridge-Classroom's SkillPath strings; the
-  known ones are convention-card's `spec/conventions/`). A convention Bridge-Classroom has no
-  skill for gets a proposed path there. Regenerate docs/SKILLS.md with
-  `rbb bid skills --doc docs/SKILLS.md`.
-- **Card fields go in the vocabulary.** A module reads only fields of
-  convention-card's `spec/fields.toml`; a new treatment is a new field or enum option there (and a
-  `.bbsa` mapping in its `spec/formats/bbsa-map.toml` when BBA has one), never a guessed
+  known ones are the pack's definitions). A convention Bridge-Classroom has no
+  skill for gets a proposed path there. `rbb bid skills` prints the map.
+- **Card fields go in the vocabulary.** A module reads only names the pack
+  defines; a new treatment is a new treatment or setting there (and a
+  `.bbsa` mapping in convention-card's `spec/formats/bbsa-map.toml` when BBA has one), never a guessed
   meaning. An unmapped `.bbsa` key stays in passthrough until its meaning
   is known. Treatments are enum fields tested with `is`
   (LANGUAGE.md §3); the BBA treatment is the `bba` option.

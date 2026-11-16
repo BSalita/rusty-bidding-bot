@@ -2,9 +2,12 @@
 
 An open-source bridge bidding engine in Rust, for native platforms and WASM.
 
-Bidding systems and conventions are written as small rule files in
-[`conventions/`](conventions/), switched on by a convention card, so new
-conventions can be added without touching the engine. Every call comes with an
+Bidding systems and conventions are written as small rule files, switched on
+by a convention card, so new conventions can be added without touching the
+engine. The rule files live in
+[bridge-common-conventions](https://github.com/bridge-craftwork/bridge-common-conventions); the engine carries a
+copy of its published snapshot ([`pack/pack.json`](pack/pack.json)) and reads
+a newer one when given it. Every call comes with an
 explanation of what it shows.
 
 Status: early design. Start with [docs/DESIGN.md](docs/DESIGN.md).
@@ -14,12 +17,12 @@ Status: early design. Start with [docs/DESIGN.md](docs/DESIGN.md).
 - `bridge-card` (from the convention-card repo, pinned by tag): the convention card schema and vocabulary, `.bbsa` import
 - `cards/bbsa/`: the stock `.bbsa` cards
 - `crates/bidspec`: the rule language
-- `conventions/`: system and convention rule files (`.bid`)
+- `pack/pack.json`: the copy of bridge-common-conventions' snapshot that is compiled in: the rule files (`.bid`) and the card names they read. Refreshed by `scripts/sync_pack.py`
 - `crates/engine`: the bidding engine
 - `crates/compare`: comparison with reference auctions (BBA)
 - `crates/cli`: the `rbb` command-line tool
 - `crates/workbench`: `rbb-workbench`, a desktop GUI for the comparison
-- `crates/assets`: the rules and stock cards, compiled into the binaries
+- `crates/assets`: the snapshot and the stock cards, compiled into the binaries
 - `crates/wasm`: the browser build, a JSON API ([docs/WASM.md](docs/WASM.md))
 - `web/`: the web site that showcases it ([docs/WEB.md](docs/WEB.md))
 

@@ -39,7 +39,7 @@ Status: **draft, open for discussion.** Decisions that are settled are marked
 ```
           ┌──────────────────── convention layer (engine-independent) ───────────────────┐
           │                                                                               │
- .bbsa ──►│  bridge-card          conventions/*.bid          bidspec                      │
+ .bbsa ──►│  bridge-card          *.bid (the pack)           bidspec                      │
           │  card schema,   ──►   rule files, one per   ──►  parser for the rule language,│
           │  .bbsa import         convention/system          compiles to a JSON IR         │
           └───────────────────────────────────────────────────────────────────────────────┘
@@ -58,9 +58,15 @@ Status: **draft, open for discussion.** Decisions that are settled are marked
                       corpus scoreboard  Bridge-Classroom
 ```
 
-**Decided.** The convention layer (`bridge-card`, `bidspec`, `conventions/`)
-never depends on the engine. It lives in this repo for now to simplify
-development, and may later move to its own repo together with the card editor.
+**Decided.** The convention layer (`bridge-card`, `bidspec`, the rule files)
+never depends on the engine. It began in this repo and has moved out in
+steps: `bridge-card` to [convention-card](https://github.com/bridge-craftwork/convention-card) (2026-09-30), and the rule
+files, with the conventions and card names they read, to
+[bridge-common-conventions](https://github.com/bridge-craftwork/bridge-common-conventions) (2026-11). This repo
+compiles in a copy of that pack's published snapshot (`pack/pack.json`,
+refreshed by `scripts/sync_pack.py` at a release) and reads a newer
+snapshot or a checkout when given one (`--rules`, the WASM API's `pack`).
+Where the text below says `conventions/`, read "the pack".
 
 ### Crates
 
@@ -68,12 +74,12 @@ development, and may later move to its own repo together with the card editor.
 |---|---|---|
 | (convention-card repo) | `bridge-card` | Convention card schema, the standard vocabulary, `.bbsa` importer: a git dependency at a tag ([The convention card](#the-convention-card)) |
 | `crates/bidspec` | `bidspec` | Rule language: lexer, parser, AST, JSON IR, validation |
-| `conventions/` | — | `.bid` files: base systems and conventions |
+| `pack/pack.json` | — | A copy of bridge-common-conventions' snapshot: the `.bid` files (base systems and conventions) and the names they read |
 | `crates/engine` | `rbb-engine` | Rule interpreter, auction state, inference |
 | `crates/compare` | `rbb-compare` | Headless comparison against reference corpora: statistics, divergences, par |
 | `crates/cli` | `rbb-cli` (binary `rbb`) | Bid PBN files; `rbb compare` report |
 | `crates/workbench` | `rbb-workbench` | Desktop GUI over `rbb-compare` (see [Comparison workbench](#comparison-workbench)) |
-| `crates/assets` | `rbb-assets` | The `.bid` rules and stock `.bbsa` cards compiled into binaries (build script), so `rbb` and the WASM build need no files |
+| `crates/assets` | `rbb-assets` | The snapshot and stock `.bbsa` cards compiled into binaries (build script), so `rbb` and the WASM build need no files |
 | `crates/wasm` | `rbb-wasm` | wasm-bindgen wrapper with a JSON boundary, same pattern as `bridge-rulebot/wasm` ([WASM.md](WASM.md)) |
 
 Hands, calls, and auctions come from
@@ -89,7 +95,9 @@ vocabulary now live in the
 (its `spec/`), with their history; this repo depends on it at a tag. Its
 ADR-0001 replaces the 2026-09-28 decision below: the standard vocabulary is
 the shared one, and a rule author adds a convention with a namespaced ID
-instead of a rules-local field. A conventions directory may still bring its
+instead of a rules-local field. **Moved again (2026-11):** the names
+(conventions, treatments, settings) are now bridge-common-conventions',
+read from its snapshot; convention-card keeps the `.bbsa` map. A plain rules directory may still bring its
 own `card/` files (`rbb_engine::rules_vocabulary`), and everything else below
 about reading cards in a rule set's vocabulary holds.
 
@@ -107,7 +115,7 @@ aliases and defaults the way the rules were checked.
 **Implemented (milestone 2)** as a data-driven registry rather than Rust
 structs:
 
-- [`conventions/card/fields.toml`](../conventions/card/fields.toml) declares every
+- `conventions/card/fields.toml` (since moved: the names are now [bridge-common-conventions](https://github.com/bridge-craftwork/bridge-common-conventions)' definitions and `settings/`) declares every
   field once: dotted path, kind (`bool | int | enum | text`), label, options,
   bounds, default, and **aliases** (older paths that still load). A card is a
   set of `path = value` pairs. Adding a convention means adding a field there
@@ -134,7 +142,7 @@ card switches modules on and supplies their parameters. The engine reads
 A `.bbsa` file is 258 CRLF lines of `Key = value`: a `System type` integer
 (0 = 2/1, 1 = SAYC, 2 = Polish Club, 3 = Precision, 4 = Acol), about 170
 on/off toggles, an `Opponent type`, and `Not defined` padding.
-[`conventions/card/bbsa-map.toml`](../conventions/card/bbsa-map.toml) maps each key
+`conventions/card/bbsa-map.toml` (now [convention-card](https://github.com/bridge-craftwork/convention-card)'s `spec/formats/bbsa-map.toml`) maps each key
 to card fields, in one of three forms:
 
 - a toggle (`"SMOLEN" = "notrump.smolen.play"`);
@@ -432,7 +440,7 @@ the web. Bridge-Classroom's Vue components (hands, DD tables) are the path if th
     `file:line` (click to open in the editor), why each alternative lost;
   - the knowledge table for all four seats, and each side's state;
   - double-dummy table, par, and the result of each contract.
-- **Hot reload**: the app watches `conventions/` and re-runs automatically
+- **Hot reload**: the app watches the rules directory (`--rules`) and re-runs automatically
   when a `.bid` or `.test` file is saved, then shows what changed ("+23 boards now match,
   4 now differ"). Editing a rule and seeing the effect a few seconds later is
   the point of the tool.
@@ -493,8 +501,8 @@ S AK5.Q72.Q942.K83  | 1NT P 2D P | !P  | the transfer is forcing
 ```
 
 `rbb bid test [paths]` runs them and prints each failure with its
-candidates. `cargo test` runs every `conventions/**/*.test`
-(`crates/engine/tests/cases.rs`), and the workbench's Cases tab lists
+candidates. The pack's CI runs every `.test` file with this engine
+(`cargo test` here no longer does), and the workbench's Cases tab lists
 failing cases, re-running when a `.bid` or `.test` file is saved. Tests of
 what the engine *knows* (interpretation, knowledge, traces) stay in Rust
 (`crates/engine/tests/interpretation.rs`).
