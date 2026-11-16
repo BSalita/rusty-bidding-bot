@@ -47,12 +47,10 @@ cp "$here"/index.html "$here"/404.html "$here"/_headers "$here"/favicon.svg \
    "$here"/app.js "$here"/app.css "$here"/styles.css "$here"/status.html "$here"/explorer.html "$here"/validate.html "$dist"/
 cp -R "$here"/lib "$here"/cards "$here"/status "$here"/explorer "$here"/validate "$dist"/
 
-# The rule set as text, for the rule checker (validate.html checks files
-# added to it): every .bid file and the manifest, and an index of them.
-(cd "$root/conventions" && find . -name '*.bid' | sed 's|^\./||' | LC_ALL=C sort) > "$cache/rules.txt"
+# The rule set, for the rule checker (validate.html checks files added to
+# it): the convention pack's snapshot the engine is built with.
 mkdir -p "$dist/rules"
-(cd "$root/conventions" && cp conventions.toml "$dist/rules/" && while read -r f; do mkdir -p "$dist/rules/$(dirname "$f")"; cp "$f" "$dist/rules/$f"; done < "$cache/rules.txt")
-python3 -c 'import json,sys; print(json.dumps({"files": [l.strip() for l in open(sys.argv[1]) if l.strip()]}))' "$cache/rules.txt" > "$dist/rules/index.json"
+cp "$root/pack/pack.json" "$dist/rules/pack.json"
 
 # The engine.
 RBB_WASM_OUT="$dist/pkg" "$root/crates/wasm/build.sh" $dev

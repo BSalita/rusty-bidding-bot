@@ -1,11 +1,12 @@
 # rusty-bidding-bot in the browser (WASM API)
 
-`crates/wasm` (crate `rbb-wasm`) builds the engine for the browser. The rules
-(`conventions/**/*.bid`), their manifest (`conventions/conventions.toml`),
-the card vocabulary (the standard one from convention-card, via
-`bridge_card::standard`, unless the rules bring their own `card/*.toml`) and the stock
-convention cards are compiled into the `.wasm` file: nothing is fetched or
-read at run time. A caller may also supply a rule set of its own as text
+`crates/wasm` (crate `rbb-wasm`) builds the engine for the browser. A copy of
+[bridge-common-conventions](https://github.com/bridge-craftwork/bridge-common-conventions)' published snapshot
+(`pack/pack.json`: the rule files, the pack's rule language and the card
+names the rules read) and the stock convention cards are compiled into the
+`.wasm` file: the engine itself fetches and reads nothing at run time. A
+host may hand it a newer snapshot it has fetched (`pack`), or a rule set of
+its own as text
 ([Rule sets supplied at run time](#rule-sets-supplied-at-run-time)). The API
 is JSON in, JSON out, and never throws on bad input: problems come back as
 `diagnostics`.
@@ -95,7 +96,7 @@ engines.
 | Field | Type | |
 |---|---|---|
 | `severity` | `"error"` \| `"warning"` \| `"info"` | `error`: the request cannot be answered (`ok` is false). `warning`: answered, but something was ignored or doubtful (an unknown card field, a rule problem met while bidding). `info`: a remark (card keys the rules do not use, "no rule applies"). |
-| `message` | string | Starts with the request field it concerns: `hand:`, `deal.N:`, `auction:`, `prefix:`, `cards.ns:`, `engine:`, `dealer:`, `vul:`, `scoring:`, `rules:`, `fields:`, `bbsa_map:`, `manifest:`, `request`. Problems in a supplied rule file read `rules: <file>:<line>: ...`. Warnings from the rules name a rule file and line (`conventions/x.bid:12: ...`) or a call (`call 3 (2C): ...`). |
+| `message` | string | Starts with the request field it concerns: `hand:`, `deal.N:`, `auction:`, `prefix:`, `cards.ns:`, `engine:`, `dealer:`, `vul:`, `scoring:`, `rules:`, `fields:`, `bbsa_map:`, `manifest:`, `pack:`, `request`. Problems in a supplied rule file read `rules: <file>:<line>: ...`. Warnings from the rules name a rule file and line (`conventions/x.bid:12: ...`) or a call (`call 3 (2C): ...`). |
 | `file` | string, optional | For a problem in a rule file supplied at run time: its name (the key in `rules`); `line` and `col` are then in that file. |
 | `line` | integer, optional | 1-based. For an auction string, always 1. For a `.bbsa` card, the line of the key. For invalid request JSON, the line in the request. For `file`, the line in that file; for `fields` / `bbsa_map`, the line in that text (TOML syntax errors). |
 | `col` | integer, optional | 1-based character column: of the offending call in an auction **string** (not given for an auction array), or in the request JSON. |
@@ -130,8 +131,8 @@ through.
 - `ns` is required; `ew` defaults to the same card.
 - `set` changes apply to both sides, then `ns_set` / `ew_set` to one:
   `path=value` with `true`/`false`, integers, or text. Paths are card fields
-  of the rule set's vocabulary (for the embedded rules `rbb card schema`,
-  `conventions/card/fields.toml`). An unknown path is an error.
+  of the rule set's vocabulary (for the embedded rules `rbb card schema`).
+  An unknown path is an error.
 
 Every card, however given, is read in the card vocabulary of the rules it
 is used with: the embedded one, or the `fields` and `bbsa_map` of a rule
@@ -169,9 +170,10 @@ No argument.
  "stock_cards": ["21GF-DEFAULT", "21GF-GIB", "..."], "diagnostics": []}
 ```
 
-`rules_id` is a hash of the embedded rule files, manifest and card
-vocabulary: it changes whenever one of them does, so it can key caches and
-label results. `language` is the rule language version this engine reads
+`rules_id` identifies the rule set. For the embedded one it is the pack's
+rules number and a hash of the compiled-in snapshot (`21-b9d92729d48b6f97`);
+for one supplied at run time, a hash of its texts. It changes whenever the
+rules do, so it can key caches and label results. `language` is the rule language version this engine reads
 (docs/CONTRACT.md); a rule set whose manifest asks for another is refused.
 
 ### `createEngine(request)` → JSON
@@ -215,7 +217,21 @@ supplies, else the embedded one.
 Any request that can make an engine or read cards (`createEngine`,
 `validate`, `bid`, `interpret`, `bidDeal`, `auction` and `meaning` with
 `cards`, `conventions`, `reference`, `coverage`, `exportCard`) may carry a
-rule set as text instead of using the embedded one:
+rule set instead of using the embedded one. Either a convention pack's
+published snapshot, which brings its rules, its rule language and its card
+names together:
+
+```json
+{"pack": "<the text of pack.json>", "cards": {"ns": {"stock": "21GF-DEFAULT"}}}
+```
+
+`pack` is the snapshot as text or already parsed. It is given alone:
+with `rules`, `fields`, `bbsa_map` or `manifest` beside it the request is
+an error. The `.bbsa` map is the embedded one. A host that fetches the
+pack's `manifest.json` first can compare its `rule_language_version` with
+`info().language` and leave `pack` out when the engine does not read it.
+
+Or the texts one by one:
 
 ```json
 {"rules": {"demo/one-nt.bid": "module demo \"Demo\"\n  card demo.strong_nt\n...",
@@ -228,10 +244,10 @@ rule set as text instead of using the embedded one:
 
 | Field | | When left out |
 |---|---|---|
-| `rules` | the rule files: an object from file name to source. Only names ending in `.bid` are compiled (others are ignored, with an `info`), in the order `rbb` reads a directory: by path, component by component (file order is the last tie-breaker between rules). The names appear in `rule.file` and in diagnostics. | the embedded `.bid` files |
-| `fields` | the text of the rule set's `card/fields.toml` | the embedded one |
+| `rules` | the rule files: an object from file name to source. Only names ending in `.bid` are compiled (others are ignored, with an `info`), in the order `rbb` reads a directory: by path, component by component (file order is the last tie-breaker between rules). The names appear in `rule.file` and in diagnostics. | an error when `fields`, `bbsa_map` or `manifest` is given |
+| `fields` | the text of the rule set's `card/fields.toml` | an error when `rules` is given |
 | `bbsa_map` | the text of its `card/bbsa-map.toml` (`""` maps no key: every `.bbsa` key is kept as passthrough) | the embedded one |
-| `manifest` | the text of its `conventions.toml` | with `rules`: none (an `info` says the rules are read as the current language, as `rbb` reads a directory without one); without `rules`: the embedded one |
+| `manifest` | the text of its `conventions.toml` | none (an `info` says the rules are read as the current language, as `rbb` reads a directory without one) |
 
 The rule set is compiled as `rbb` loads a rules directory: the manifest
 must ask for a rule language this engine reads (`info().language`), the
@@ -241,8 +257,10 @@ vocabulary, with every term known to the engine (`check_terms`). Any
 failure is an `error` diagnostic, and no engine is made: in a rule file
 with `file`, `line` and `col` (`"rules: demo/one-nt.bid:6: unknown term
 ..."`), in the other texts starting with the field (`"fields: ..."`, with
-the `line` of a TOML syntax error). When only some of the texts are given,
-the embedded ones fill in and must fit: an error in one of them names it
+the `line` of a TOML syntax error). `rules` and `fields` go together
+(`"rules: needed with fields, bbsa_map or manifest"`, `"fields: needed with
+rules"`); a `bbsa_map` left out is the embedded one and must fit the given
+fields: an error in it names it
 (`"bbsa_map: the embedded convention-card/spec/formats/bbsa-map.toml (not given): ..."`).
 
 Cards are read in the supplied vocabulary (stock cards too). A compiled
@@ -259,7 +277,7 @@ optional:
 ```json
 {"hand": "...", "deal": "...", "dealer": "N", "auction": "...", "prefix": "...",
  "vul": "None", "scoring": "MP", "cards": {...}, "engine": 1,
- "rules": {...}, "fields": "...", "bbsa_map": "...", "manifest": "..."}
+ "rules": {...}, "fields": "...", "bbsa_map": "...", "manifest": "...", "pack": "..."}
 ```
 
 - `auction` and `prefix` are checked for legality from `dealer`, which is
@@ -304,7 +322,7 @@ Response:
  "call": "1NT",
  "explanation": "Notrump opening: 15-17 HCP, balanced",
  "alert": {"kind": "announce", "text": "15 to 17"},
- "rule": {"module": "notrump-base", "file": "conventions/notrump/one-nt.bid", "line": 19},
+ "rule": {"module": "notrump-base", "file": "rules/notrump/one-nt.bid", "line": 19},
  "candidates": [
    {"call": "1NT", "rule": {...}, "explanation": "Notrump opening: 15-17 HCP, balanced",
     "priority": 0, "descriptiveness": 0.93, "prefer": null, "outcome": "chosen"},
@@ -386,7 +404,7 @@ A **step**:
  "explanation": "Notrump opening: 15-17 HCP, balanced",
  "announcement": "Notrump opening: 15-17 HCP, balanced",
  "alert": {"kind": "announce", "text": "15 to 17"},
- "rule": {"module": "notrump-base", "file": "conventions/notrump/one-nt.bid", "line": 19},
+ "rule": {"module": "notrump-base", "file": "rules/notrump/one-nt.bid", "line": 19},
  "artificial": false,
  "knowledge": {
    "hcp": {"min": 15, "max": 17},
@@ -616,7 +634,7 @@ or of a supplied rule set (`rules_id` says which). Request: `{}`, or with `engin
 ```json
 {"ok": true, "rules_id": "d737c980a4bbdb8c",
  "modules": [
-   {"name": "stayman", "title": "Stayman", "file": "conventions/notrump/stayman.bid",
+   {"name": "stayman", "title": "Stayman", "file": "conventions/bidding_conventions/stayman/stayman.bid",
     "card": ["notrump.stayman.play"], "needs": ["notrump-base"],
     "rules": [
       {"after": ["1N (P)", "(1x) 1N (P)"], "context": ["!they.bid | systems_on"],
@@ -651,7 +669,7 @@ marked `[on]` or `[off]` for `"side": "ns"` (default) or `"ew"`.
 # x/y any suit, M a major, m a minor. Text in {..} is filled in when bidding.
 
 == stayman: Stayman  [on]
-   file: conventions/notrump/stayman.bid
+   file: conventions/bidding_conventions/stayman/stayman.bid
    card: notrump.stayman.play
    needs: notrump-base
 

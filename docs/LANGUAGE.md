@@ -3,11 +3,18 @@
 Status: **draft, parsed and running.** The `bidspec` crate parses this syntax
 into a JSON IR (`rbb bid check`, `rbb bid compile <file>`), and `rbb-engine`
 executes it (`rbb call`). Section 11 lists how the engine currently reads
-the vocabulary, including what is not implemented yet. The examples in [`conventions/`](../conventions/) all compile.
+the vocabulary, including what is not implemented yet. The rule files are in [bridge-common-conventions](https://github.com/bridge-craftwork/bridge-common-conventions) (`rules/` and beside each convention's definition); this repo compiles in a copy of its snapshot (`pack/pack.json`). They all compile.
 
-This is **rule language 1**. [CONTRACT.md](CONTRACT.md) says what that
-version promises, how a rules directory declares it (`conventions.toml`),
-and lists every term a condition may use (`rbb bid terms`).
+The engine reads **rule language 2**, and still reads 1.
+[CONTRACT.md](CONTRACT.md) says what a version promises, how a rule set
+declares it (a pack's `bridge-pack.toml`, a plain directory's
+`conventions.toml`), and lists every term a condition may use (`rbb bid
+terms`). Language 2 is language 1 with the changes in the pack's contract
+([section 9](https://github.com/bridge-craftwork/bridge-common-conventions/blob/main/docs/CONTRACT.md#9-what-the-rule-language-reads)):
+a `convention <id>` header line switches a module on by the card's entry
+for that convention, and `card` and `param` read an address (an ID,
+`<id>:<treatment>`, or a dotted setting). The examples below are written
+in language 1's card paths, which a pack's names keep as aliases.
 
 ## 1. The model: rules describe calls; the engine tracks what is known
 
@@ -98,7 +105,7 @@ module rkcb-1430 "Roman Keycard Blackwood (1430)"
   Bridge-Classroom tags its lessons (`skill bidding_conventions/stayman`).
   Repeatable, and a line may name several. It records what the module
   teaches and changes nothing about how it loads or bids; `rbb bid skills`
-  maps skills to card fields and modules (docs/SKILLS.md).
+  prints the map of skills to card fields and modules.
 - `kind convention|defence|system|judgement`: what the module is, once.
   `convention`: a convention the card switches or chooses, whose meanings
   are the shared standard's (convention-card's field and convention IDs).
@@ -454,7 +461,10 @@ and arithmetic on numbers and `.min` / `.max`.
 **Suits.** A suit in a comparison is its length (`S>=H`, `M>=4`, `x<=1`).
 `is` asks what something *is*: `we.trump is suit` (or `notrump`, `none`), and
 `x is M` / `x is not M` for "the same suit" or "a different suit", and
-`style is relay` for a card option (section 3). Precedence, tightest first:
+`style is relay` for a card option (section 3). A parameter that reads a
+function's part (`param def = defence_to_1nt.strong`) holds the ID of the
+convention the card plays for it: `def is competitive_bidding/dont`, the ID
+written without spaces, and `def is none` when nothing fills it. Precedence, tightest first:
 `!`, then `|`, then `,`. So `hcp>=8, H=4 | S=4` reads as "8+ HCP, and a
 4-card heart or spade suit". Parentheses override.
 
@@ -621,10 +631,10 @@ These are enforced by `bidspec`, with file:line:column errors:
 - A `skill` path is lower-case letters, digits and `_` on both sides of
   one `/` (`precision/1c_opener`); `/` appears nowhere else in the
   language. `rbb bid check` warns about a path that the rules'
-  is not a standard convention or skill (convention-card's `spec/conventions/`).
+  is not a standard convention or skill (the pack's definitions).
 - `card` and `param` paths must exist in the rules' card vocabulary
-  (convention-card's `spec/fields.toml`); an old alias is reported with the
-  current name.
+  (the pack's conventions, treatments and settings); an old alias is
+  reported with the current name.
 - `rbb bid check` also checks across files: module names are unique, and a
   `needs` that names no module is a warning.
 - Every name in a condition must be one the engine knows (a term such as

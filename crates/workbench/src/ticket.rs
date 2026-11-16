@@ -801,7 +801,7 @@ fn absolute(p: &str) -> String {
 
 fn reproduce(s: &Settings, b: Option<&BoardResult>, fd: Option<&FirstDifference>) -> Reproduce {
     let pbs = absolute(&s.pbs);
-    let rules = (s.rules != "conventions").then(|| absolute(&s.rules));
+    let rules = (s.rules != "pack/pack.json").then(|| absolute(&s.rules));
     let mut notes = vec![];
     let call = match (b, fd) {
         (Some(b), Some(fd)) => {
@@ -2058,7 +2058,7 @@ mod end_to_end {
             return;
         }
         let here = Path::new(env!("CARGO_MANIFEST_DIR"));
-        let rules = here.join("../../conventions");
+        let rules = here.join("../../pack/pack.json");
         let opts = rbb_compare::Options {
             pbs: pbs.clone(),
             scenarios: vec!["Basic_Takeout_Double".into()],

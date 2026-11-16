@@ -11,6 +11,11 @@ pub struct Module {
     pub title: Option<String>,
     /// Source file, as given to the parser.
     pub file: String,
+    /// The convention these are the rules for (`convention <id>`, rule
+    /// language 2): the module is on when the card plays it, and a bare
+    /// name on a `card` or `param` line is one of its treatments.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub convention: Option<String>,
     /// Activation: every condition must hold on the card.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub card: Vec<CardCond>,
@@ -161,6 +166,12 @@ pub struct CardCond {
     /// Required value; absent means "is on".
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub value: Option<Literal>,
+    /// For a `convention` line written `default true`: the module is also on
+    /// for a card that is silent on the convention, and off only when the
+    /// card says it does not play it. The bidder's own choice for a silent
+    /// card, as a parameter's default is.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub default_on: bool,
     pub line: usize,
 }
 

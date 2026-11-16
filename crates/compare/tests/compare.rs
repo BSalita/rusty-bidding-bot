@@ -14,7 +14,7 @@ fn options_for(scenario: &str) -> Options {
         pbs: here.join("tests/fixtures/pbs"),
         scenarios: vec![scenario.to_string()],
         limit: None,
-        rules: here.join("../../conventions"),
+        rules: here.join("../../pack/pack.json"),
         par: false,
         par_all: false,
         dd_cache: std::env::temp_dir().join("rbb-compare-test-dd.jsonl"),

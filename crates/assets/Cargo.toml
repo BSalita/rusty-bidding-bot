@@ -1,6 +1,6 @@
 [package]
 name = "rbb-assets"
-description = "The rule files (conventions/*.bid) and stock .bbsa cards, compiled into the binary"
+description = "The compiled-in convention pack snapshot (pack/pack.json) and stock .bbsa cards"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

@@ -16,11 +16,20 @@ BBA / EPBot.
 
 ## Adding a convention
 
-1. Add or find the card setting that turns it on: the card fields are in the
-   convention-card repo (`spec/fields.toml`, `spec/conventions/`).
-2. Write a `.bid` module in `conventions/` (syntax: docs/DESIGN.md, "The rule
-   language"). Every rule needs an explanation and a `shows` clause.
-3. Add test auctions, and check the corpus scoreboard for regressions.
+Conventions, the card settings that turn them on and their rule files are
+in [bridge-common-conventions](https://github.com/bridge-craftwork/bridge-common-conventions), not here. A
+convention is a pull request there:
+
+1. Add or find its definition and the card setting that turns it on.
+2. Write a `.bid` module (syntax: docs/LANGUAGE.md). Every rule needs an
+   explanation and a `shows` clause.
+3. Add test auctions (a `.test` file beside the module), and check the corpus
+   scoreboard for regressions: `rbb bid check --rules .` and
+   `rbb bid test --rules .` in a checkout of that repo, `rbb compare --rules
+   <checkout>` here.
+
+This repo takes the result at a release, when `scripts/sync_pack.py`
+refreshes `pack/pack.json`.
 
 docs/CONTRACT.md lists what the engine promises a rule set and what a good
 convention file does (tests, notes, measuring a change).

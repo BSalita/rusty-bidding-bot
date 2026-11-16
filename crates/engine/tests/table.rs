@@ -14,7 +14,7 @@ fn engine() -> &'static Engine {
     ENGINE.get_or_init(|| {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let text = std::fs::read_to_string(root.join("cards/bbsa/21GF-DEFAULT.bbsa")).unwrap();
-        let rules = rbb_engine::load_rules(&root.join("conventions")).unwrap();
+        let rules = rbb_engine::load_rules(&root.join("pack/pack.json")).unwrap();
         let (card, _) = bbsa::import(&rules.vocab, &text, None).unwrap();
         Engine::new(&card, &card, &rules)
     })

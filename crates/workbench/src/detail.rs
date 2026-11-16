@@ -607,7 +607,7 @@ mod tests {
             pbs: here.join("../compare/tests/fixtures/pbs"),
             scenarios: vec![],
             limit: None,
-            rules: here.join("../../conventions"),
+            rules: here.join("../../pack/pack.json"),
             par: false,
             par_all: false,
             dd_cache: std::env::temp_dir().join("rbb-workbench-test-dd.jsonl"),

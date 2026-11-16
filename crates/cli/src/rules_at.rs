@@ -3,9 +3,14 @@
 //! before/after comparison needs no copied rules directory.
 //!
 //! The files are named as `load_rules` names them from the working tree
-//! (`conventions/base/base.bid`), and compiled in the same order (sorted by
+//! (`rules/base/base.bid`), and compiled in the same order (sorted by
 //! path), so the rule references in a run's output match a run on the
 //! working tree's rules.
+//!
+//! A convention pack's names come from that commit too: its `.toml` files
+//! are written to a temporary folder and read as a pack, so rules are
+//! compiled against the names they were written for, and the rule language
+//! `bridge-pack.toml` named then is checked.
 
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -30,9 +35,11 @@ fn git(args: &[&str]) -> Result<String> {
 }
 
 /// The blobs `specs` (`<commit>:<path>`) name, in order, read with one
-/// `git cat-file --batch`.
-fn blobs(specs: &[String]) -> Result<Vec<Vec<u8>>> {
+/// `git cat-file --batch` in the repository `dir` is in.
+fn blobs(dir: &Path, specs: &[String]) -> Result<Vec<Vec<u8>>> {
     let mut child = Command::new("git")
+        .arg("-C")
+        .arg(dir)
         .args(["cat-file", "--batch"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -71,7 +78,15 @@ fn blobs(specs: &[String]) -> Result<Vec<Vec<u8>>> {
 pub fn load(git_ref: &str, dir: &Path) -> Result<RuleSet> {
     let fail =
         |m: String| -> Box<dyn std::error::Error> { format!("--rules-at {git_ref}: {m}").into() };
+    if !dir.is_dir() {
+        return Err(fail(format!(
+            "{} is not a folder; name the rules folder of a git checkout with --rules",
+            dir.display()
+        )));
+    }
     let commit = git(&[
+        "-C",
+        &dir.to_string_lossy(),
         "rev-parse",
         "--verify",
         "--quiet",
@@ -79,9 +94,16 @@ pub fn load(git_ref: &str, dir: &Path) -> Result<RuleSet> {
     ])
     .map_err(|_| fail("not a commit in this repository".into()))?;
     let commit = commit.trim().to_string();
-    let prefix = git(&["rev-parse", "--show-prefix"]).map_err(|e| fail(e.to_string()))?;
-    let dir_text = dir.to_string_lossy().trim_end_matches('/').to_string();
+    // Asked from inside `dir`, so `.`, `..` and nested folders all work:
+    // `root_dir` is `dir` from the repository's root, empty or ending `/`.
+    let dir_text = dir.to_string_lossy().to_string();
+    let root_dir = git(&["-C", &dir_text, "rev-parse", "--show-prefix"])
+        .map_err(|e| fail(e.to_string()))?
+        .trim()
+        .to_string();
     let listed = git(&[
+        "-C",
+        &dir_text,
         "ls-tree",
         "-r",
         "--full-name",
@@ -89,11 +111,9 @@ pub fn load(git_ref: &str, dir: &Path) -> Result<RuleSet> {
         "-z",
         &commit,
         "--",
-        &format!("{dir_text}/"),
+        "./",
     ])
     .map_err(|e| fail(e.to_string()))?;
-    // In-repo path (from the root) -> path relative to `dir`.
-    let root_dir = format!("{}{dir_text}/", prefix.trim());
     let files: Vec<(String, PathBuf)> = listed
         .split('\0')
         .filter(|p| !p.is_empty())
@@ -102,8 +122,12 @@ pub fn load(git_ref: &str, dir: &Path) -> Result<RuleSet> {
                 .map(|rel| (p.to_string(), PathBuf::from(rel)))
         })
         .collect();
+    let is_pack = files
+        .iter()
+        .any(|(_, r)| r == Path::new(bidspec::manifest::PACK_FILE));
     let wanted = |rel: &Path| {
         rel.extension().is_some_and(|x| x == "bid")
+            || (is_pack && rel.extension().is_some_and(|x| x == "toml"))
             || rel == Path::new(bidspec::manifest::FILE)
             || rel == Path::new(rbb_engine::Vocabulary::FIELDS)
             || rel == Path::new(rbb_engine::Vocabulary::BBSA_MAP)
@@ -116,14 +140,30 @@ pub fn load(git_ref: &str, dir: &Path) -> Result<RuleSet> {
         .any(|(_, r)| r.extension().is_some_and(|x| x == "bid"))
     {
         return Err(fail(format!(
-            "no .bid files under {dir_text}/ at {commit:.12}"
+            "no .bid files under {dir_text} at {commit:.12}"
         )));
     }
     let specs: Vec<String> = files.iter().map(|(p, _)| format!("{commit}:{p}")).collect();
-    let texts = blobs(&specs).map_err(|e| fail(e.to_string()))?;
+    let texts = blobs(dir, &specs).map_err(|e| fail(e.to_string()))?;
     let mut sources: Vec<(String, String)> = Vec::new();
     let (mut manifest, mut fields, mut bbsa_map) = (None, None, None);
+    // A pack's definitions, settings and pack file at that commit, written
+    // out to be read as `load_rules` reads a pack folder.
+    let pack_dir = is_pack.then(|| {
+        std::env::temp_dir().join(format!(
+            "rbb-rules-at-{:.12}-{}",
+            commit,
+            std::process::id()
+        ))
+    });
     for ((_, rel), bytes) in files.iter().zip(texts) {
+        if let (Some(tmp), true) = (&pack_dir, rel.extension().is_some_and(|x| x == "toml")) {
+            let to = tmp.join(rel);
+            std::fs::create_dir_all(to.parent().unwrap())
+                .and_then(|()| std::fs::write(&to, &bytes))
+                .map_err(|e| fail(format!("{}: {e}", to.display())))?;
+            continue;
+        }
         // Named with `/` as `load_modules` names the working tree's files.
         let mut name = dir.join(rel).display().to_string();
         if cfg!(windows) {
@@ -140,14 +180,29 @@ pub fn load(git_ref: &str, dir: &Path) -> Result<RuleSet> {
             sources.push((name, text));
         }
     }
-    let manifest = manifest
-        .map(|(name, text)| rbb_engine::check_manifest(&text, &name))
-        .transpose()
-        .map_err(|d| fail(d.to_string()))?;
-    let vocab = match fields {
-        Some(f) => rbb_engine::Vocabulary::parse(&f, bbsa_map.as_deref().unwrap_or(""))
-            .map_err(|e| fail(e.to_string()))?,
-        None => bridge_card::standard::vocabulary().map_err(|e| fail(e.to_string()))?,
+    let (manifest, vocab) = match &pack_dir {
+        Some(tmp) => {
+            let read = rbb_engine::read_manifest(tmp)
+                .map_err(|d| fail(d.to_string()))
+                .and_then(|m| {
+                    let v = rbb_engine::rules_vocabulary(tmp).map_err(|e| fail(e.to_string()))?;
+                    Ok((m, v))
+                });
+            let _ = std::fs::remove_dir_all(tmp);
+            read?
+        }
+        None => {
+            let manifest = manifest
+                .map(|(name, text)| rbb_engine::check_manifest(&text, &name))
+                .transpose()
+                .map_err(|d| fail(d.to_string()))?;
+            let vocab = match fields {
+                Some(f) => rbb_engine::Vocabulary::parse(&f, bbsa_map.as_deref().unwrap_or(""))
+                    .map_err(|e| fail(e.to_string()))?,
+                None => bridge_card::standard::vocabulary().map_err(|e| fail(e.to_string()))?,
+            };
+            (manifest, vocab)
+        }
     };
     let modules = rbb_engine::compile_modules(
         &vocab,
