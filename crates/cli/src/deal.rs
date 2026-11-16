@@ -92,6 +92,77 @@ pub fn check(paths: &[PathBuf], params: &[String]) -> Result<()> {
     Ok(())
 }
 
+/// `rbb deal run SCRIPT`: the deals a script produces for a seed, as PBN.
+///
+/// The deals are dealer3's for the same script and seed. Boards are numbered
+/// from 1; a script that names no dealer or vulnerability gets the ones its
+/// board number carries, as dealer3 writes them.
+pub fn run(
+    script: &Path,
+    seed: u32,
+    produce: Option<usize>,
+    generate: Option<usize>,
+    params: &[String],
+    output: Option<&Path>,
+) -> Result<()> {
+    let text = fs::read_to_string(script).map_err(|e| format!("{}: {e}", script.display()))?;
+    let mut given = dealer_parser::ScriptParams::default();
+    for p in params {
+        given.set(p)?;
+    }
+    let dealt = dealer_run::deal_script(
+        &text,
+        dealer_run::ScriptOptions {
+            seed,
+            produce,
+            max_generate: generate,
+            params: given,
+            threads: 0,
+        },
+    )
+    .map_err(|e| format!("{}: {e}", script.display()))?;
+    let event = script.file_stem().and_then(|s| s.to_str());
+    let vulnerability = dealt.vulnerability.map(|v| match v {
+        dealer_parser::VulnerabilityType::None => dealer_pbn::Vulnerability::None,
+        dealer_parser::VulnerabilityType::NS => dealer_pbn::Vulnerability::NS,
+        dealer_parser::VulnerabilityType::EW => dealer_pbn::Vulnerability::EW,
+        dealer_parser::VulnerabilityType::All => dealer_pbn::Vulnerability::All,
+    });
+    let mut pbn = String::new();
+    for (i, (deal, hand_type)) in dealt.deals.iter().enumerate() {
+        pbn.push_str(&dealer_pbn::format_printpbn(
+            deal,
+            &dealer_pbn::PbnBoard {
+                board_number: i,
+                dealer: dealt.dealer,
+                vulnerability,
+                event_name: event,
+                seed: Some(seed),
+                input_file: None,
+                hand_type: hand_type.as_deref(),
+                dd_table: None,
+                dd_tags: dealer_pbn::DdTags::default(),
+            },
+        ));
+    }
+    match output {
+        Some(path) => fs::write(path, &pbn).map_err(|e| format!("{}: {e}", path.display()))?,
+        None => print!("{pbn}"),
+    }
+    eprintln!(
+        "{} deal{} from {} dealt{}",
+        dealt.deals.len(),
+        if dealt.deals.len() == 1 { "" } else { "s" },
+        dealt.report.generated,
+        if dealt.report.hit_limit {
+            ": the script's condition was not met often enough within the deals allowed"
+        } else {
+            ""
+        }
+    );
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

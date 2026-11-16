@@ -21,5 +21,8 @@ clap = { version = "4", features = ["derive"] }
 serde_json = "1"
 bridge-encodings = { git = "https://github.com/bridge-craftwork/bridge-encodings" }
 rayon = "1"
-# dealer3's script parser: `rbb deal check` reads a script as dealer3 will.
-dealer-parser = { git = "https://github.com/bridge-craftwork/dealer3", rev = "24d6dbcb153f7e1d27c6bb75c1a967087f939c93" }
+# dealer3: `rbb deal` reads a script with dealer3's parser and deals from it
+# with dealer3's engine, so a script means here what it means there.
+dealer-parser = { git = "https://github.com/bridge-craftwork/dealer3", rev = "045cbf03330787044b1240b9a9177d0d28750ca5" }
+dealer-run = { git = "https://github.com/bridge-craftwork/dealer3", rev = "045cbf03330787044b1240b9a9177d0d28750ca5", features = ["parallel"] }
+dealer-pbn = { git = "https://github.com/bridge-craftwork/dealer3", rev = "045cbf03330787044b1240b9a9177d0d28750ca5" }

@@ -642,6 +642,28 @@ enum DealCommand {
         #[arg(long)]
         param: Vec<String>,
     },
+    /// Deal from a dealer script and write the deals as PBN: the deals
+    /// dealer3 deals for the same script and seed. `rbb bid-pbn` bids them.
+    Run {
+        /// The script (.dlr).
+        script: PathBuf,
+        /// The seed. The same seed deals the same deals.
+        #[arg(short, long, default_value_t = 1)]
+        seed: u32,
+        /// Deals to produce (default: the script's `produce`, else 40).
+        #[arg(short, long)]
+        produce: Option<usize>,
+        /// Deals the run may look at (default: the script's `generate`,
+        /// else 10,000,000).
+        #[arg(short, long)]
+        generate: Option<usize>,
+        /// A script parameter, `N=text` (repeatable).
+        #[arg(long)]
+        param: Vec<String>,
+        /// Write the PBN here (default: standard output).
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
 }
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -651,6 +673,14 @@ fn run(cli: Cli) -> Result<()> {
         Command::Card(cmd) => card(cmd),
         Command::Bid(cmd) => bid(cmd),
         Command::Deal(DealCommand::Check { paths, param }) => deal::check(&paths, &param),
+        Command::Deal(DealCommand::Run {
+            script,
+            seed,
+            produce,
+            generate,
+            param,
+            output,
+        }) => deal::run(&script, seed, produce, generate, &param, output.as_deref()),
         Command::Compare {
             scenarios,
             pbs,
